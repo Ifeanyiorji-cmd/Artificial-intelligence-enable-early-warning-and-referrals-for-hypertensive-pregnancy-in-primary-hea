@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMEWRIN Maternal Hypertension Early Warning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root, html[data-theme="light"] {
+    --ink:#0C1E3A;
+    --bg:#F2F5F9;
+    --surface:#FFFFFF;
+    --line:#DAE2EC;
+    --teal:#1A56B8;
+    --teal-dim:#E8F0FB;
+    --normal:#2E8B57;
+    --caution:#D98E2C;
+    --high:#C1432F;
+    --critical:#7A1F1F;
+    --muted:#5B6B83;
+    --input-bg:#FFFFFF;
+    --modal-overlay:rgba(20,48,43,0.55);
+    --disclaimer-bg:#FFF7E8;
+    --disclaimer-border:#EBCE8E;
+    --disclaimer-text:#7A5A16;
+    /* Spring-like easing curves (overshoot / settle), used for anything that
+       enters, presses, or confirms, plain ease/linear reads as robotic for
+       these moments. --ease-spring-soft has no overshoot, for larger surfaces
+       like sheets where a bounce would feel gimmicky. */
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-press: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  /* Global tactile press feedback, every button gets a quick, snappy
+     press-down rather than relying on hover alone (hover doesn't exist on
+     the touchscreens this app is actually used on). */
+  button, .menu-row {
+    transition: transform 0.15s var(--ease-press), background 0.15s var(--ease-press), filter 0.15s var(--ease-press), border-color 0.15s var(--ease-press);
+  }
+  button:active, .menu-row:active {
+    transform: scale(0.96);
+  }
+
+  .toast-viewport{
+    position:fixed; left:0; right:0; bottom:16px; z-index:200;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    padding:0 16px; pointer-events:none;
+  }
+  .toast{
+    pointer-events:auto;
+    max-width:380px; width:100%;
+    background:var(--ink); color:#fff;
+    border-radius:11px; padding:12px 16px; font-size:13.5px; line-height:1.4;
+    box-shadow:0 8px 24px rgba(0,0,0,0.25);
+    display:flex; align-items:flex-start; gap:9px;
+    opacity:0; transform:translateY(16px) scale(0.95);
+    transition: opacity 0.32s var(--ease-spring-soft), transform 0.32s var(--ease-spring);
+  }
+  .toast.show{ opacity:1; transform:translateY(0) scale(1); }
+  .toast.leaving{ opacity:0; transform:translateY(8px) scale(0.96); transition: opacity 0.18s var(--ease-press), transform 0.18s var(--ease-press); }
+  .toast .toast-dot{ width:8px; height:8px; border-radius:50%; flex:none; margin-top:4px; }
+  .toast.success .toast-dot{ background:var(--normal); }
+  .toast.error .toast-dot{ background:var(--high); }
+  .toast.info .toast-dot{ background:var(--teal); }
+
+  html[data-theme="dark"] {
+    --ink:#E1E9F5;
+    --bg:#0F172A;
+    --surface:#1E293B;
+    --line:#334155;
+    --teal:#3B82F6;
+    --teal-dim:#1E3A8A;
+    --normal:#10B981;
+    --caution:#F59E0B;
+    --high:#EF4444;
+    --critical:#991B1B;
+    --muted:#94A3B8;
+    --input-bg:#0F172A;
+    --modal-overlay:rgba(0,0,0,0.75);
+    --disclaimer-bg:#2D2615;
+    --disclaimer-border:#785A1A;
+    --disclaimer-text:#FDE047;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    font-size:15px; line-height:1.5;
+    font-feature-settings:'tnum' 1;
+    transition: background 0.2s, color 0.2s;
+  }
+  h1,h2,h3,.display{
+    font-family:inherit;
+    letter-spacing:-0.02em;
+  }
+  .mono{font-family:'Instrument Sans',system-ui,sans-serif;}
+
+  /* ===== Masthead ===== */
+  header.mast{
+    background:#0B2545;
+    color:#EAF2FB;
+    padding:16px 20px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    border-bottom:4px solid var(--teal);
+  }
+  .mast-brand{display:flex;flex-direction:column;gap:2px;}
+  .mast-brand h1{font-size:22px;font-weight:600;margin:0;color:#fff;}
+  .mast-sub{font-size:11px;color:#A9C3E6;letter-spacing:0.04em;text-transform:uppercase;}
+  .mast-tag{font-size:11.5px;color:#A9C3E6;line-height:1.4;width:100%;}
+  .mast-controls{display:flex;align-items:center;gap:8px;margin-left:auto;}
+
+  @media (min-width: 600px) {
+    header.mast{padding:22px 28px; gap:6px;}
+    .mast-brand{flex-direction:row; align-items:baseline; gap:12px;}
+    .mast-brand h1{font-size:26px;}
+    .mast-sub{font-size:12.5px;}
+    .mast-tag{font-size:12.5px; width:auto; text-align:right;}
+  }
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:20px 16px 60px;
+  }
+  @media (min-width: 600px) {
+    main{padding:34px 24px 80px;}
+  }
+
+  .intro{
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+    margin-bottom:24px;
+  }
+  @media (min-width: 900px) {
+    .intro{
+      margin-bottom:34px;
+    }
+  }
+
+  .intro h2{font-size:24px;line-height:1.2;margin:0 0 10px;font-weight:600;}
+  @media (min-width: 600px) { .intro h2{font-size:34px;line-height:1.15;} }
+  .intro p{color:var(--muted);font-size:14px;line-height:1.6;margin:0;max-width:52ch;}
+
+  .stat-strip{
+    display:flex;
+    gap:0;
+    border:1px solid var(--line);
+    background:var(--surface);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .stat-strip div{
+    flex:1;
+    padding:10px 12px;
+    border-right:1px solid var(--line);
+    text-align:center;
+  }
+  @media (min-width: 600px) {
+    .stat-strip div{padding:14px 16px; text-align:left;}
+  }
+  .stat-strip div:last-child{border-right:none;}
+  .stat-strip .num{font-family:'Instrument Sans',system-ui,sans-serif;font-size:16px;font-weight:600;color:var(--teal);}
+  @media (min-width: 600px) { .stat-strip .num{font-size:20px;} }
+  .stat-strip .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+  @media (min-width: 600px) { .stat-strip .lbl{font-size:11px;} }
+
+  /* ===== Layout ===== */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:20px;
+    align-items:start;
+  }
+  @media (min-width: 900px){
+    .grid{grid-template-columns:1fr 420px; gap:24px;}
+  }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+  }
+  @media (min-width: 600px) { .card{padding:24px;} }
+  .card + .card{margin-top:20px;}
+
+  .section-title{
+    display:flex;align-items:center;gap:10px;
+    margin:0 0 16px;
+  }
+  .section-title .eyebrow{
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    font-size:11px;color:var(--teal);
+    background:var(--teal-dim);
+    padding:3px 8px;border-radius:20px;
+    letter-spacing:.03em;
+  }
+  .section-title h3{margin:0;font-size:17px;font-weight:600;}
+  @media (min-width: 600px) { .section-title h3{font-size:19px;} }
+
+  fieldset{border:none;padding:0;margin:0 0 20px;}
+  legend{
+    font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);margin-bottom:10px;padding:0;font-weight:600;
+  }
+  .field-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  @media (min-width: 480px) {
+    .field-grid{grid-template-columns:repeat(2,1fr); gap:14px;}
+  }
+
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field.full{grid-column:1/-1;}
+  .field label{font-size:12.5px;color:var(--ink);font-weight:500;}
+  .field .hint{font-size:11px;color:var(--muted);}
+  
+  input[type=number], select, input[type=text], input[type=tel], input[type=password]{
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    padding:12px 12px;
+    font-size:16px;
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    background:var(--input-bg);
+    color:var(--ink);
+    width:100%;
+    -webkit-appearance:none;
+  }
+  select{font-family:'Instrument Sans',system-ui,sans-serif;}
+  input:focus, select:focus{
+    outline:2px solid var(--teal);
+    outline-offset:1px;
+    border-color:var(--teal);
+  }
+
+  .check-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  @media (min-width: 480px) {
+    .check-grid{grid-template-columns:repeat(2,1fr);}
+  }
+
+  .check{
+    display:flex;align-items:center;gap:10px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    padding:12px;
+    font-size:14px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    touch-action: manipulation;
+  }
+  .check:has(input:checked){
+    border-color:var(--teal);
+    background:var(--teal-dim);
+  }
+  .check input{accent-color:var(--teal);width:18px;height:18px;}
+
+  button#assess-btn{
+    width:100%;
+    background:var(--teal);
+    color:#fff;
+    border:none;
+    border-radius:9px;
+    padding:16px;
+    font-size:16px;
+    font-weight:600;
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    cursor:pointer;
+    transition:background .15s, transform .1s;
+    margin-top:4px;
+    touch-action: manipulation;
+  }
+  button#assess-btn:hover{filter: brightness(0.9);}
+
+  /* ===== Results column ===== */
+  .results-col{position:static;}
+  @media (min-width: 900px) {
+    .results-col{position:sticky; top:20px;}
+  }
+
+  .placeholder{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;
+    padding:30px 16px;
+    color:var(--muted);
+    font-size:13.5px;
+    gap:10px;
+  }
+  .placeholder svg{opacity:.5;}
+
+  /* Gauge */
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:6px 0 4px;}
+  .gauge-readout{
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    font-size:13px;
+    color:var(--muted);
+    margin-top:-6px;
+  }
+  .diagnosis-name{
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    font-size:24px;
+    font-weight:600;
+    margin:10px 0 2px;
+    text-align:center;
+  }
+  .confidence{
+    text-align:center;
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:16px;
+  }
+
+  .tier-banner{
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:13.5px;
+    font-weight:600;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .tier-banner .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+
+  .prob-bars{display:flex;flex-direction:column;gap:9px;margin-top:6px;}
+  .prob-row{display:grid;grid-template-columns:100px 1fr 40px;align-items:center;gap:8px;font-size:12px;}
+  .prob-track{height:8px;background:var(--line);border-radius:5px;overflow:hidden;}
+  .prob-fill{height:100%;border-radius:5px;transition:width .5s ease;}
+
+  .rec-list{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:9px;}
+  .rec-list li{
+    display:flex;gap:9px;
+    font-size:13px;
+    line-height:1.5;
+    color:var(--ink);
+    padding:10px 12px;
+    background:var(--input-bg);
+    border:1px solid var(--line);
+    border-radius:8px;
+  }
+  .rec-list li .num{
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    color:var(--teal);
+    font-weight:600;
+    flex:none;
+  }
+
+  footer{
+    max-width:1180px;margin:30px auto 0;padding:16px 16px 0;
+    border-top:1px solid var(--line);
+    color:var(--muted);
+    font-size:11.5px;
+    line-height:1.7;
+  }
+
+  .disclaimer{
+    background:var(--disclaimer-bg);
+    border:1px solid var(--disclaimer-border);
+    color:var(--disclaimer-text);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:12px;
+    line-height:1.55;
+    margin-top:20px;
+  }
+
+  /* ===== Referral / facility / SMS section ===== */
+  #referral-section{display:none;}
+  .loc-btn{
+    width:100%;
+    background:var(--teal-dim);
+    color:var(--teal);
+    border:1.5px solid var(--teal);
+    border-radius:9px;
+    padding:12px;
+    font-size:14px;
+    font-weight:600;
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    cursor:pointer;
+    margin-bottom:14px;
+    touch-action: manipulation;
+  }
+  .loc-btn:hover{filter: brightness(0.9);}
+  .loc-status{
+    font-size:12px;color:var(--muted);text-align:center;margin:-6px 0 14px;
+    min-height:14px;
+  }
+  .facility-item{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:10px;
+    border:1.5px solid var(--line);
+    border-radius:9px;
+    padding:11px 13px;
+    margin-bottom:8px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    touch-action: manipulation;
+  }
+  .facility-item:hover{border-color:var(--teal);}
+  .facility-item.selected{border-color:var(--teal); background:var(--teal-dim);}
+  .facility-name{font-weight:600; font-size:13.5px;}
+  .facility-meta{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .facility-dist{
+    font-family:'Instrument Sans',system-ui,sans-serif;
+    font-size:12.5px; color:var(--teal); font-weight:600; white-space:nowrap;
+  }
+  .tier-tag{
+    display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:600;
+  }
+  .tier-tag.tertiary{background:#F0E4D8; color:#8A5A2B;}
+  .tier-tag.secondary{background:#E4ECEA; color:#3E5D57;}
+  .tier-tag.custom{background:#E9E4F0; color:#5A3E8A;}
+
+  .sms-field{display:flex; flex-direction:column; gap:5px; margin:14px 0 10px;}
+  .sms-field label{font-size:12.5px; font-weight:500;}
+  textarea#sms-preview{
+    width:100%; min-height:120px; resize:vertical;
+    border:1.5px solid var(--line); border-radius:8px; padding:10px;
+    font-family:'Instrument Sans',system-ui,sans-serif; font-size:14px; color:var(--ink);
+    background:var(--input-bg); line-height:1.5;
+  }
+  button#sms-btn{
+    width:100%; background:var(--high); color:#fff; border:none; border-radius:9px;
+    padding:14px; font-size:15px; font-weight:600; font-family:'Instrument Sans',system-ui,sans-serif;
+    cursor:pointer; margin-top:10px; touch-action: manipulation;
+  }
+  button#sms-btn:hover{filter: brightness(0.9);}
+  button#sms-btn:disabled{background:#C9CFCB; cursor:not-allowed;}
+  .sms-note{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5;}
+
+  .contact-edit{
+    border:1.5px solid var(--line); border-radius:9px; padding:12px 13px;
+    margin:2px 0 14px; background:var(--input-bg);
+  }
+  .contact-edit .ce-title{font-size:12px; font-weight:600; color:var(--teal); margin-bottom:8px;}
+  .contact-edit .field-grid-2{display:grid; grid-template-columns:1fr; gap:10px;}
+  @media (min-width: 480px) {
+    .contact-edit .field-grid-2{grid-template-columns:1fr 1fr;}
+  }
+  .contact-edit .field{display:flex; flex-direction:column; gap:4px;}
+  .contact-edit label{font-size:11.5px; color:var(--muted); font-weight:500;}
+
+  .add-facility-toggle{
+    background:none; border:1.5px dashed var(--line); color:var(--teal);
+    border-radius:9px; padding:12px; width:100%; font-size:13.5px; font-weight:600;
+    cursor:pointer; margin:2px 0 14px; font-family:'Instrument Sans',system-ui,sans-serif;
+    touch-action: manipulation;
+  }
+  .add-facility-toggle:hover{border-color:var(--teal); background:var(--teal-dim);}
+  #add-facility-form{display:none; margin-bottom:14px;}
+  #add-facility-form .field{display:flex; flex-direction:column; gap:4px; margin-bottom:10px;}
+  #add-facility-form label{font-size:12px; font-weight:500;}
+  #add-facility-form button{
+    background:var(--teal); color:#fff; border:none; border-radius:8px;
+    padding:12px; font-size:14px; font-weight:600; cursor:pointer; width:100%;
+    touch-action: manipulation;
+  }
+  .facility-address{font-size:11.5px; color:var(--muted); margin-top:1px;}
+  .facility-phone{font-size:11.5px; color:var(--teal); margin-top:1px; font-family:'Instrument Sans',system-ui,sans-serif;}
+
+  /* ===== Account bar & auth modal ===== */
+  .menu-btn{
+    background:rgba(255,255,255,0.1); color:#EAF2FB; border:1px solid rgba(255,255,255,0.25);
+    border-radius:10px; width:38px; height:38px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px; touch-action: manipulation;
+  }
+  .menu-btn:hover, .menu-btn[aria-expanded="true"]{background:rgba(255,255,255,0.18);}
+  .mast-controls{position:relative;}
+  .menu-panel{
+    display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:60;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.18); min-width:220px; padding:6px; overflow:hidden;
+  }
+  .menu-panel.open{display:block;}
+  .menu-section{display:flex; flex-direction:column;}
+  .menu-row{
+    display:flex; align-items:center; gap:10px; width:100%;
+    background:none; border:none; text-align:left; cursor:pointer;
+    padding:10px 12px; border-radius:8px; font-size:13.5px; color:var(--ink);
+    font-family:'Instrument Sans',system-ui,sans-serif; touch-action: manipulation;
+  }
+  .menu-row:hover{background:var(--teal-dim);}
+  .menu-row .who-info{display:flex; flex-direction:column; gap:1px;}
+  .menu-row .who-info b{color:var(--ink);}
+  .menu-row .who-sub{font-size:11px; color:var(--muted); font-weight:400;}
+  .menu-divider{height:1px; background:var(--line); margin:6px 4px;}
+
+  .modal-overlay{
+    display:flex; visibility:hidden; pointer-events:none;
+    position:fixed; inset:0; background:var(--modal-overlay);
+    z-index:100; align-items:flex-end; justify-content:center; padding:0;
+    opacity:0; transition: opacity 0.25s var(--ease-spring-soft), visibility 0s linear 0.25s;
+  }
+  .modal-overlay.open{
+    visibility:visible; pointer-events:auto; opacity:1;
+    transition: opacity 0.25s var(--ease-spring-soft);
+  }
+  @media (min-width: 480px) {
+    .modal-overlay{align-items:center; padding:20px;}
+  }
+  .modal-box{
+    background:var(--surface); color:var(--ink); 
+    border-top-left-radius:16px; border-top-right-radius:16px; border-bottom-left-radius:0; border-bottom-right-radius:0;
+    padding:20px; width:100%; max-width:400px;
+    max-height:90vh; overflow-y:auto; border:1px solid var(--line);
+    position:relative;
+    transform: translateY(100%);
+    transition: transform 0.32s var(--ease-spring-soft);
+  }
+  .modal-overlay.open .modal-box{ transform: translateY(0); }
+  .modal-box.dragging{ transition:none; }
+  .drag-handle{
+    display:block; width:36px; height:4px; border-radius:2px; background:var(--line);
+    margin:0 auto 14px; touch-action:none;
+  }
+  @media (min-width: 480px) {
+    .drag-handle{display:none;}
+    .modal-box{ transform:translateY(12px) scale(0.98); opacity:0; }
+    .modal-overlay.open .modal-box{ transform:translateY(0) scale(1); opacity:1; }
+  }
+  @media (min-width: 480px) {
+    .modal-box{border-radius:14px; padding:26px;}
+  }
+  .modal-box h3{margin:0 0 4px; font-size:18px;}
+  .modal-box .modal-sub{font-size:12px; color:var(--muted); margin-bottom:16px;}
+  .modal-tabs{display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid var(--line);}
+  .modal-tab{
+    flex:1; text-align:center; padding:9px; font-size:13px; font-weight:600; color:var(--muted);
+    cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+    touch-action: manipulation;
+  }
+  .modal-tab.active{color:var(--teal); border-bottom-color:var(--teal);}
+  .modal-box .field{display:flex; flex-direction:column; gap:5px; margin-bottom:12px;}
+  .modal-box label{font-size:12px; font-weight:500;}
+  .modal-box button.primary{
+    width:100%; background:var(--teal); color:#fff; border:none; border-radius:9px;
+    padding:14px; font-size:15px; font-weight:600; cursor:pointer; margin-top:6px;
+    touch-action: manipulation;
+  }
+  .modal-box button.primary:hover{filter: brightness(0.9);}
+  .modal-close{
+    position:absolute; top:14px; right:16px; background:none; border:none;
+    font-size:24px; color:var(--muted); cursor:pointer; line-height:1; padding:4px;
+    touch-action: manipulation;
+  }
+  .auth-error{
+    background:#FDECEA; color:#A6392A; border:1px solid #F3C3BB; border-radius:8px;
+    padding:9px 11px; font-size:12px; margin-bottom:12px; display:none;
+  }
+  .auth-note{font-size:11px; color:var(--muted); line-height:1.5; margin-top:10px;}
+
+  /* History panel */
+  #history-panel{display:none;}
+  .history-item{
+    border:1px solid var(--line); border-radius:9px; padding:10px 12px; margin-bottom:8px; font-size:12.5px;
+  }
+  .history-item .h-top{display:flex; justify-content:space-between; font-weight:600;}
+  .history-item .h-date{color:var(--muted); font-weight:400; font-size:11px;}
+
+  /* ===== Professional refinement layer ===== */
+  .ico{flex:none; vertical-align:-3px;}
+  #account-btn:not(.in)::before, .loc-btn::before{
+    content:""; display:inline-block; width:16px; height:16px; margin-right:8px; vertical-align:-3px;
+    background:currentColor; -webkit-mask:var(--m) center/contain no-repeat; mask:var(--m) center/contain no-repeat;
+  }
+  #account-btn{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'%3E%3Ccircle cx='8' cy='5.5' r='2.8'/%3E%3Cpath d='M2.5 14c.6-2.6 2.8-4 5.5-4s4.9 1.4 5.5 4'/%3E%3C/svg%3E");}
+  .loc-btn{--m:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 14s4.5-4 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 10 8 14 8 14z'/%3E%3Ccircle cx='8' cy='6.5' r='1.6'/%3E%3C/svg%3E");}
+  .menu-row .ico{color:var(--muted);}
+
+  header.mast{
+    position:sticky; top:0; z-index:50;
+    background:var(--surface); color:var(--ink);
+    border-bottom:1px solid var(--line);
+    padding:12px 16px; gap:10px; flex-wrap:nowrap;
+  }
+  .mast-brand{flex-direction:row; align-items:center; gap:12px; min-width:0;}
+  .mast-logo{color:var(--teal); flex:none;}
+  .mast-text{display:flex; flex-direction:column; min-width:0;}
+  .mast-brand h1{font-size:19px; font-weight:700; color:var(--ink); letter-spacing:-0.01em; line-height:1.1;}
+  .mast-sub{font-size:11.5px; color:var(--muted); letter-spacing:0; text-transform:none; line-height:1.35;
+    display:none;}
+  .mast-tag{display:none;}
+  @media (min-width:700px){
+    header.mast{padding:14px 32px;}
+    .mast-sub{display:block; font-size:12px; max-width:62ch;}
+    .mast-brand h1{font-size:21px;}
+  }
+  .menu-btn{background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:9px; width:40px; height:40px;}
+  .menu-btn:hover, .menu-btn[aria-expanded="true"]{background:var(--teal-dim); border-color:var(--teal);}
+  .menu-btn:focus-visible, button:focus-visible, .check:focus-within{outline:2px solid var(--teal); outline-offset:2px;}
+  .menu-panel{border-radius:12px; box-shadow:0 12px 32px rgba(12,30,58,.14), 0 1px 2px rgba(12,30,58,.06);}
+
+  main{max-width:1160px; padding:28px 16px 64px;}
+  @media (min-width:700px){ main{padding:48px 32px 96px;} }
+
+  .intro{margin-bottom:28px;}
+  .intro h2{font-size:28px; line-height:1.12; font-weight:700; letter-spacing:-0.025em; max-width:20ch; margin:0 0 12px;}
+  @media (min-width:700px){ .intro h2{font-size:44px; line-height:1.06;} .intro{margin-bottom:44px;} }
+  .intro p{font-size:15.5px; line-height:1.6; max-width:60ch; color:var(--muted);}
+
+  .card{border-radius:12px; padding:20px; box-shadow:0 1px 2px rgba(12,30,58,.04);}
+  @media (min-width:700px){ .card{padding:28px;} }
+  .section-title{margin:0 0 20px;}
+  .section-title h3{font-size:18px; font-weight:600; letter-spacing:-0.015em;}
+
+  fieldset{margin:0 0 28px;}
+  legend{
+    font-size:13px; text-transform:none; letter-spacing:0; color:var(--ink); font-weight:600;
+    padding:0 0 10px; margin:0; width:100%; border-bottom:1px solid var(--line); margin-bottom:14px;
+  }
+  .field label{font-size:13px; font-weight:500; color:var(--ink);}
+  input[type=number], select, input[type=text], input[type=tel], input[type=password]{
+    border:1px solid #C3CEDD; border-radius:8px; padding:11px 12px; font-size:16px;
+    font-family:inherit; font-variant-numeric:tabular-nums;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  html[data-theme="dark"] input[type=number], html[data-theme="dark"] select,
+  html[data-theme="dark"] input[type=text], html[data-theme="dark"] input[type=tel], html[data-theme="dark"] input[type=password]{border-color:#3B4A63;}
+  input:hover, select:hover{border-color:var(--teal);}
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--teal); box-shadow:0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent);}
+  select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%235B6B83' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:34px;}
+
+  .check{border:1px solid #C3CEDD; border-radius:8px; padding:11px 12px; font-size:14px;}
+  html[data-theme="dark"] .check{border-color:#3B4A63;}
+  .check:hover{border-color:var(--teal);}
+  .check:has(input:checked){border-color:var(--teal); background:var(--teal-dim); font-weight:500;}
+
+  button#assess-btn{border-radius:9px; padding:15px; font-size:15.5px; letter-spacing:0; box-shadow:0 1px 2px rgba(12,30,58,.18);}
+  .loc-btn{background:var(--surface); border:1px solid var(--teal); border-radius:9px;}
+  .loc-btn:hover{background:var(--teal-dim); filter:none;}
+  button#sms-btn{border-radius:9px;}
+  textarea#sms-preview{border:1px solid #C3CEDD; font-family:inherit; font-size:14px;}
+
+  /* Results: status-coloured spine is the one expressive element */
+  #results-card{border-top:3px solid var(--status, var(--line)); transition:border-color .3s;}
+  .diagnosis-name{font-size:28px; font-weight:700; letter-spacing:-0.025em; margin:12px 0 4px;}
+  .confidence{font-size:13px;}
+  .tier-banner{border-radius:9px; font-weight:600;}
+  .prob-track{display:block; height:6px;}
+  .prob-fill{display:block;}
+  .prob-row span:last-child{text-align:right; font-variant-numeric:tabular-nums;}
+  .prob-fill{transition:width .5s var(--ease-spring-soft);}
+  .rec-list li{background:transparent; border:none; border-top:1px solid var(--line); border-radius:0; padding:12px 2px; font-size:14px; line-height:1.55;}
+  .rec-list li:first-child{border-top:none;}
+  .rec-list{gap:0; margin-top:16px;}
+  .placeholder{padding:44px 16px; font-size:14px; line-height:1.55;}
+  .placeholder span{max-width:34ch;}
+
+  .tier-tag{text-transform:none; letter-spacing:0; font-size:11px;}
+  .facility-item{border:1px solid var(--line); border-radius:9px;}
+  .facility-item.selected{border-color:var(--teal); box-shadow:inset 3px 0 0 var(--teal);}
+
+  .disclaimer{border-radius:10px; font-size:13px; line-height:1.6; margin-top:28px;}
+  footer{font-size:12px; max-width:1160px; padding:20px 16px 0;}
+  @media (min-width:700px){ footer{padding:20px 32px 0;} }
+  .modal-box{border-radius:16px 16px 0 0;}
+  @media (min-width:480px){ .modal-box{border-radius:14px;} }
+
+  .absu-crest{height:40px; width:auto; flex:none; display:block;}
+  .mast-sep{width:1px; height:30px; background:var(--line); flex:none;}
+  @media (max-width:420px){ .absu-crest{height:34px;} .mast-brand{gap:9px;} .mast-brand h1{font-size:17px;} }
+
+  footer .credit{margin:14px 0 0; padding-top:14px; border-top:1px solid var(--line); color:var(--ink); font-size:12.5px; font-weight:500;}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="mast-brand">
+    <img class="absu-crest" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFIAAABgCAYAAACOniU9AAA+oElEQVR42uX9ebhcVZX/j7/W3meo6c5D5oHME4EQCDMJIKiIoCigCLbibGu3trMf7QS11e7WVpRWsQXngaAgAn5AgswzISEJmefx5ubOdWs4w977+0dVQsDEBhv6+f2+35OnnspTz61T56y91/Re77UOu3fvbotc7+zbb3vsQ5/91I/e4Zyb4pxr3bx5X+f27ZtO6N7VPXXfvn15aofw/4HDOSdLlzrd3d097/Fnnx27ePHiwPM0zrnjnHOTH1626+zPfOr7P/n5T+5+K8DSpUu111Ot6jGM2Xjvn55+20P3rfveiqfXbZ4+/ZgffOObf/+An2OkiNyxc+fOMddf/we3bFk1Wrr0UisizjmnRMT+v0R2snSpUzfffBk339wtIpICBljhnMuePHduuGDBJed+7pM/fcP6NbvO3LGz59jhoViqFycDwG+XLVumpL4CI6687F+/+ef/u/MKY4vS0JSltSW/b9axbQ+9/g3n/eHyqxb82fNknzEv/PX77rvPu//+++2SJUuciLj/f9hpAEuWLJHRo9+of/WBT7gHeCA9wt/pwf1M+OlPf/eap5/eMrm7u/9tXft7xw/0WuJySBpn41yuQRdat33luW0/XTJ//vt9EQFrXeFTH/351h9/f3VHc3PWxknRpYnSEJFvhEKDW7Xg9GlbTpg//aYPfPS19zU2FrqHhoanicjGw35fL164WO4HOjtnu0svvZTLLhPzvy2sp59+2p88eXK++Z7m4mU33wzcTHf3LAF44IFr/kJohUKOYrHkb1o3vOib/3ZtrqGp48oVT26ahC3M272zR9IkQ6mUIGA9P3RKeSJ4Nk0jb8L04Z8//PR171okiw7tSO997/zBzj/8es+oXF47y7D4qtGlCRZV1YkZQvsVWtpCRKcHjp9/zP62zoaVC048efm40flbTztnVtkP1IE0OeKmVM/b14WycOEiFi1axKJFcP/999trrlniXobpdYsX3+fV/ns/11yztv6DNwOXAje7LVu2jG1ozp/f2TbyR0fYaRmg4Rc33NWazY96wx23LWvq6Gy+bPnTqwObBpO69vVTGrZgslQriny2xVjrnGhP4VLlMCAWpcQNlwbk4rdO6/3RLz82WkRiqW/37Jtf/7Wtjy4bHpEr4KwURZzG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" alt="Abia State University crest" width="34" height="40">
+    <span class="mast-sep" aria-hidden="true"></span>
+    <svg class="mast-logo" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="currentColor"/><path d="M5 18h6l3-7 5 14 3-7h7" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="mast-text">
+      <h1>AMEWRIN</h1>
+      <span class="mast-sub">Machine Learning-Enabled Maternal Early Warning &amp; Referral Intelligence Network</span>
+    </div>
+  </div>
+  <div class="mast-tag" data-i18n-html="mastTag">Abia State Primary Health Care Facilities<br>Hypertensive Pregnancy Screening Tool</div>
+  <div class="mast-controls">
+    <button class="menu-btn" id="menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Open menu">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13"/></svg>
+    </button>
+    <div class="menu-panel" id="menu-panel">
+      <div class="menu-section" id="account-info">
+        <button class="menu-row" id="account-btn" data-i18n="signIn">Sign in</button>
+      </div>
+      <div class="menu-divider"></div>
+      <button class="menu-row" id="lang-toggle" type="button"><svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"/></svg> <span id="lang-toggle-label">Igbo</span></button>
+      <button class="menu-row" id="theme-toggle" type="button"><span id="theme-icon"><svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3 5.5 5.5 0 1 0 13 9.5z"/></svg></span> <span id="theme-toggle-label">Dark mode</span></button>
+    </div>
+  </div>
+</header>
+
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal-box" id="auth-modal-box">
+    <div class="drag-handle" id="auth-drag-handle"></div>
+    <button class="modal-close" id="auth-close">&times;</button>
+    <h3 data-i18n="authTitle">Your AMEWRIN account</h3>
+    <div class="modal-sub" data-i18n="authSub">Save assessments and contribute to the shared facility directory.</div>
+    <div class="modal-tabs">
+      <div class="modal-tab active" id="tab-login" data-i18n="signIn">Sign in</div>
+      <div class="modal-tab" id="tab-register" data-i18n="createAccount">Create account</div>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+
+    <div id="login-form">
+      <div class="field">
+        <label for="login-phone" data-i18n="phoneNumber">Phone number</label>
+        <input type="tel" id="login-phone" placeholder="08031234567">
+      </div>
+      <div class="field">
+        <label for="login-pin" data-i18n="pin">PIN</label>
+        <input type="password" id="login-pin" inputmode="numeric" maxlength="6" placeholder="4-6 digits" data-i18n-ph="digits46">
+      </div>
+      <button class="primary" id="login-submit" data-i18n="signIn">Sign in</button>
+    </div>
+
+    <div id="register-form" style="display:none;">
+      <div class="field">
+        <label for="reg-name" data-i18n="yourName">Your name</label>
+        <input type="text" id="reg-name" placeholder="e.g. Amaka Nwosu">
+      </div>
+      <div class="field">
+        <label for="reg-phone" data-i18n="phoneNumber">Phone number</label>
+        <input type="tel" id="reg-phone" placeholder="08031234567">
+      </div>
+      <div class="field">
+        <label for="reg-role" data-i18n="role">Role</label>
+        <select id="reg-role">
+          <option value="CHEW">CHEW</option>
+          <option value="Midwife">Midwife</option>
+          <option value="Nurse">Nurse</option>
+          <option value="Doctor">Doctor</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="reg-facility" data-i18n="facility">Facility</label>
+        <input type="text" id="reg-facility" placeholder="e.g. PHC II Ndiegoro" data-i18n-ph="egFacility">
+      </div>
+      <div class="field">
+        <label for="reg-pin" data-i18n="choosePin">Choose a PIN (4-6 digits)</label>
+        <input type="password" id="reg-pin" inputmode="numeric" maxlength="6" placeholder="e.g. 1234">
+      </div>
+      <button class="primary" id="register-submit" data-i18n="createAccount">Create account</button>
+      <div class="auth-note" data-i18n="pinNote">This PIN protects your account on this app. It doesn't verify you own this phone number. That would need an SMS verification code, which isn't wired up yet.</div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <div class="intro">
+    <div>
+      <h2 data-i18n-html="introH2">Screen for hypertensive disorders of&nbsp;pregnancy at the point of care.</h2>
+      <p data-i18n="introP">Enter a woman's vitals and antenatal history as recorded at triage. AMEWRIN classifies her risk and tells the health worker whether she needs to be referred, trained on de-identified visits from Abia State PHC facilities.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ===== FORM ===== -->
+    <div class="card">
+      <div class="section-title">
+        <h3 data-i18n="patientVitals">Patient &amp; Vitals</h3>
+      </div>
+
+      <form id="assess-form">
+        <fieldset>
+          <legend data-i18n="antenatalHistory">Antenatal history</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="age" data-i18n="ageYears">Age (years)</label>
+              <input type="number" id="age" value="27" min="14" max="55" required>
+            </div>
+            <div class="field">
+              <label for="gest" data-i18n="gestAge">Gestational age (weeks)</label>
+              <input type="number" id="gest" value="30" min="4" max="42" required>
+            </div>
+            <div class="field">
+              <label for="gravidity" data-i18n="gravidity">Gravidity</label>
+              <input type="number" id="gravidity" value="2" min="0" max="15" required>
+            </div>
+            <div class="field">
+              <label for="parity" data-i18n="parity">Parity</label>
+              <input type="number" id="parity" value="1" min="0" max="15" required>
+            </div>
+            <div class="field">
+              <label for="bmi" data-i18n="bmi">BMI (kg/m²)</label>
+              <input type="number" step="0.1" id="bmi" value="26.5" min="12" max="60" required>
+            </div>
+            <div class="field">
+              <label for="anc-visits" data-i18n="ancVisits">ANC visits so far</label>
+              <input type="number" id="anc-visits" value="3" min="0" max="15" required>
+            </div>
+            <div class="field">
+              <label for="anc-booking" data-i18n="ancBooking">ANC booking (wks gestation)</label>
+              <input type="number" id="anc-booking" value="14" min="0" max="40" required>
+            </div>
+            <div class="field">
+              <label for="temp" data-i18n="temperature">Temperature (°C)</label>
+              <input type="number" step="0.1" id="temp" value="36.6" min="33" max="42" required>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend data-i18n="vitalSigns">Vital signs</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="sbp" data-i18n="sbp">Systolic BP (mmHg)</label>
+              <input type="number" id="sbp" value="118" min="70" max="260" required>
+            </div>
+            <div class="field">
+              <label for="dbp" data-i18n="dbp">Diastolic BP (mmHg)</label>
+              <input type="number" id="dbp" value="76" min="40" max="180" required>
+            </div>
+            <div class="field">
+              <label for="spo2" data-i18n="spo2">SpO₂ (%)</label>
+              <input type="number" step="0.1" id="spo2" value="98" min="60" max="100" required>
+            </div>
+            <div class="field">
+              <label for="hr" data-i18n="heartRate">Heart rate (bpm)</label>
+              <input type="number" id="hr" value="82" min="40" max="200" required>
+            </div>
+            <div class="field">
+              <label for="rr" data-i18n="respRate">Respiratory rate (breaths/min)</label>
+              <input type="number" id="rr" value="16" min="8" max="60" required>
+            </div>
+            <div class="field">
+              <label for="proteinuria" data-i18n="proteinuria">Proteinuria (dipstick)</label>
+              <select id="proteinuria">
+                <option value="0" data-i18n="negative">Negative</option>
+                <option value="1" data-i18n="trace">Trace / 1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="oedema" data-i18n="oedemaGrade">Oedema grade</label>
+              <select id="oedema">
+                <option value="0" data-i18n="none">None</option>
+                <option value="1" data-i18n="oedema1">+1 (ankles)</option>
+                <option value="2" data-i18n="oedema2">+2 (legs)</option>
+                <option value="3" data-i18n="oedema3">+3 (face/hands)</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend data-i18n="symptomsRisk">Symptoms &amp; risk factors</legend>
+          <div class="check-grid">
+            <label class="check"><input type="checkbox" id="headache"> <span data-i18n="headache">Headache</span></label>
+            <label class="check"><input type="checkbox" id="visual"> <span data-i18n="visualDisturbance">Visual disturbance</span></label>
+            <label class="check"><input type="checkbox" id="epigastric"> <span data-i18n="epigastricPain">Epigastric pain</span></label>
+            <label class="check"><input type="checkbox" id="nausea"> <span data-i18n="nausea">Nausea / vomiting</span></label>
+            <label class="check"><input type="checkbox" id="seizure"> <span data-i18n="seizure">Seizure (this pregnancy)</span></label>
+            <label class="check"><input type="checkbox" id="multiple"> <span data-i18n="multipleGestation">Multiple gestation</span></label>
+            <label class="check"><input type="checkbox" id="prev-pe"> <span data-i18n="prevPE">Previous pre-eclampsia</span></label>
+            <label class="check"><input type="checkbox" id="family-htn"> <span data-i18n="familyHtn">Family history of HTN</span></label>
+            <label class="check"><input type="checkbox" id="diabetes"> <span data-i18n="diabetes">Diabetes / comorbid</span></label>
+          </div>
+        </fieldset>
+
+        <button type="submit" id="assess-btn" data-i18n="runAssessment">Run assessment</button>
+      </form>
+    </div>
+
+    <!-- ===== RESULTS ===== -->
+    <div class="results-col">
+      <div class="card" id="results-card">
+        <div class="section-title">
+          <h3 data-i18n="riskAssessment">Risk Assessment</h3>
+        </div>
+
+        <div id="placeholder-state" class="placeholder">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/><circle cx="12" cy="12" r="3"/></svg>
+          <span data-i18n-html="placeholderState">Enter the patient's vitals and press <b>Run assessment</b> to see her risk classification, gauge reading, and referral guidance.</span>
+        </div>
+
+        <div id="results-state" style="display:none;">
+
+          <div class="gauge-wrap">
+            <svg id="gauge-svg" width="240" height="140" viewBox="0 0 240 140"></svg>
+            <div class="gauge-readout" id="gauge-readout">MAP mmHg</div>
+          </div>
+
+          <div class="diagnosis-name" id="diagnosis-name">-</div>
+          <div class="confidence" id="diagnosis-confidence">-</div>
+
+          <div class="tier-banner" id="tier-banner">
+            <span class="dot"></span>
+            <span id="tier-text">-</span>
+          </div>
+
+          <div class="prob-bars" id="prob-bars"></div>
+
+          <ul class="rec-list" id="rec-list"></ul>
+
+        </div>
+      </div>
+
+      <div class="card" id="referral-section">
+        <div class="section-title">
+          <h3 data-i18n="nearestFacility">Nearest Facility &amp; SMS Referral</h3>
+        </div>
+
+        <button type="button" class="loc-btn" id="locate-btn" data-i18n="findFacility">Find nearest referral facility</button>
+        <div class="loc-status" id="loc-status"></div>
+
+        <div id="facility-list"></div>
+
+        <button type="button" class="add-facility-toggle" id="add-facility-toggle" data-i18n="addFacility">+ Add a facility not listed</button>
+        <div id="add-facility-form">
+          <div class="field">
+            <label for="nf-name" data-i18n="facilityName">Facility name</label>
+            <input type="text" id="nf-name" placeholder="e.g. Cottage Hospital, Item">
+          </div>
+          <div class="field">
+            <label for="nf-address" data-i18n="address">Address</label>
+            <input type="text" id="nf-address" placeholder="e.g. Item Road, Bende LGA">
+          </div>
+          <div class="field">
+            <label for="nf-phone" data-i18n="contactNumber">Contact number</label>
+            <input type="tel" id="nf-phone" placeholder="e.g. 08031234567">
+          </div>
+          <button type="button" id="nf-save" data-i18n="addSelectFacility">Add &amp; select this facility</button>
+        </div>
+
+        <div id="contact-edit-block" class="contact-edit" style="display:none;">
+          <div class="ce-title" data-i18n="facilityContactDetails">Facility contact details</div>
+          <div class="field-grid-2">
+            <div class="field">
+              <label for="fac-address" data-i18n="address">Address</label>
+              <input type="text" id="fac-address" placeholder="Street / landmark, LGA">
+            </div>
+            <div class="field">
+              <label for="fac-phone" data-i18n="contactNumber">Contact number</label>
+              <input type="tel" id="fac-phone" class="mono" placeholder="08031234567">
+            </div>
+          </div>
+        </div>
+
+        <div id="sms-block" style="display:none;">
+          <div class="sms-field">
+            <label for="worker-name" data-i18n="referringWorker">Referring health worker / facility</label>
+            <input type="text" id="worker-name" placeholder="e.g. CHEW, PHC II Ndiegoro">
+          </div>
+          <div class="sms-field">
+            <label for="dest-phone" data-i18n="destPhone">Destination phone number</label>
+            <input type="tel" id="dest-phone" placeholder="e.g. 08031234567">
+          </div>
+          <div class="sms-field">
+            <label for="sms-preview" data-i18n="messagePreview">Message preview (editable)</label>
+            <textarea id="sms-preview"></textarea>
+          </div>
+          <button type="button" id="sms-btn" disabled data-i18n="openSms">Open SMS to send referral</button>
+          <div class="sms-note" data-i18n="smsNote">Opens your phone's own messaging app with this referral pre-filled, you review and hit send yourself. A static site like this one can't silently send SMS through a carrier; that would need a paid SMS gateway (e.g. Termii, Africa's Talking) wired up on a real server.</div>
+        </div>
+      </div>
+
+      <div class="card" id="history-panel">
+        <div class="section-title">
+          <h3 data-i18n="savedAssessments">Your Saved Assessments</h3>
+        </div>
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="disclaimer">
+    <span data-i18n-html="disclaimer"><b>Clinical support only.</b> AMEWRIN is a decision-support aid trained on a research dataset from Abia State PHC facilities. It does not replace clinical judgement, and any woman with severe symptoms (seizure, BP ≥160/110, visual disturbance, epigastric pain) should be referred immediately regardless of the model's output.</span>
+  </div>
+
+</main>
+
+<footer>
+  AMEWRIN: Machine Learning-enabled Maternal Early Warning and Referral Intelligence Network for hypertensive pregnancy in Abia State primary health care facilities. Diagnosis model: multinomial logistic regression (4 classes), trained on 717 Abia State antenatal records plus 52,000 supplementary synthetic maternal-health records (Africa-region preeclampsia and WHO ANC guideline-structured data, used to test generalisation). Referral model: binary logistic regression, trained on the 717 Abia State records only, since testing showed the larger supplementary dataset degraded referral discrimination.
+
+  <p class="credit">Built by ANICHE JOSEPH AND ORJI IFEANYI in fulfilment of their final year project requirements for a degree in Computer Engineering from Abia State University.</p>
+</footer>
+
+<script>
+const MODEL = {"classes": ["Eclampsia", "Gestational_HTN", "Normal", "Pre_eclampsia"], "features": ["Age_years", "Gravidity", "Parity", "Gestational_Age_wks", "BMI_kgm2", "Multiple_Gestation", "Prev_Pre_eclampsia", "Family_Hx_HTN", "Diabetes_Comorbid", "ANC_Visits_Count", "ANC_Booking_wks", "SBP_mmHg", "DBP_mmHg", "MAP_mmHg", "Pulse_Pressure_mmHg", "SpO2_pct", "Heart_Rate_bpm", "Shock_Index", "Temp_Celsius", "Resp_Rate_breaths_min", "Proteinuria_Grade", "Oedema_Grade", "Headache", "Visual_Disturbance", "Epigastric_Pain", "Nausea_Vomiting", "Seizure_History"], "scaler_mean": [27.198835290323803, 3.0481248932981773, 2.0066581937515413, 30.356456171633436, 24.094686723447847, 0.013202572225278373, 0.013468141206821329, 0.054688240984881537, 0.0764269590454692, 3.356564296147353, 15.00007587685187, 124.54263709998672, 77.24980366864578, 93.01405871603721, 47.29283343134093, 97.89904205474517, 85.59853557675892, 0.7064630259380285, 36.600354724282504, 17.400288332037107, 0.7505358802663278, 0.40269742208395776, 0.18343228939431303, 0.08962953127074758, 0.09251285164178538, 0.12656258891818578, 0.010471005557979399], "scaler_scale": [6.589620980176526, 2.402065913863735, 2.2411846010863243, 6.875437756893695, 4.339080150401725, 0.1141414224193596, 0.11526816724167366, 0.22737070453965932, 0.2656800311964213, 2.152514502009498, 0.47531391804142376, 21.79347335034244, 14.124663013681797, 15.651121359701637, 14.444442658501844, 0.13683348555391753, 1.1968733329433758, 0.11180570309603953, 0.04212865329011508, 0.29465960178105793, 1.3402523245426627, 0.8015073014372696, 0.3870205221973042, 0.285650272877401, 0.2897485529263096, 0.332482330364355, 0.10179078347563775], "diagnosis_model": {"coef": [[-0.16130057202669187, 0.0006754718941996891, -0.03224795846871867, -0.07480377918817047, 0.0060214462831587766, 0.20879264874357997, 0.19132428169890467, -0.04852539353930702, -0.014878438303760034, -0.06657504808166512, -0.13237354613333743, -0.1902984297679456, -0.32335676468880536, -0.28326033314126337, 0.029079805056846802, -0.25965679106676304, -0.056178479557351106, 0.602075629055958, 0.08520848707908085, 0.06916479224124233, 0.7830458256568192, -0.2040585466197599, 0.3237512823383213, 0.4971900593749333, 0.38359589527173676, -0.3085312405540946, 2.063531235909497], [0.07674125917849701, -0.9393656379047115, 0.9192840783637136, -0.33830922919137535, 0.11390346359678863, -0.06246961186518444, -0.06446151904368909, -0.00263900104469613, 0.06529795577562088, 0.2896752799674164, 0.03690178805995123, 1.749622960660597, 1.2499611148094905, 1.5626353615535058, 1.4175058410690462, -0.01099131580132181, -0.20270739735203536, 3.250507725819383, 0.07977599536800122, -0.07288616628023668, -1.1659634302591313, -0.1662467245666139, -0.49246848559845896, -0.3800533151649831, -0.4507974222299411, -0.026399332313305275, -0.2725845857157766], [0.07453975185585646, -0.6680946823637789, 0.6042935925447388, 0.09440663103670074, -0.008495223728291503, -0.08238371911768494, -0.08843543894752237, 0.04942936252537755, 0.04007786831711819, -0.023806997336242242, -0.000996863704021021, -2.8267328934018185, -2.4843508163424315, -2.8068628871881534, -1.8355647579577028, 0.10303846557349662, 0.1578833210556399, -3.091111810457887, -0.08622094649218769, -0.07509910908104611, -2.32402768899451, 0.2934483454211145, -0.03122965117272883, -0.22976065901208675, 0.06846249814155597, 0.3062852371719679, -0.23091305920550934], [0.010019560992330723, 1.6067848483742828, -1.4913297124397384, 0.31870637734285284, -0.11142968615164975, -0.06393931776071343, -0.03842732370768558, 0.001735032058634523, -0.09049738578898157, -0.19929323454951045, 0.09646862177739743, 1.2674083625091792, 1.557746466221726, 1.527487858775907, 0.388979111831825, 0.16760964129458714, 0.10100255585373408, -0.7614715444174335, -0.0787635359548798, 0.07882048312003624, 2.7069452935967937, 0.07685692576525403, 0.1999468544328607, 0.11262391480213639, -0.0012609711833466448, 0.028645335695423, -1.5600335909882068]], "intercept": [-4.271859900890884, 0.8026682269112602, 5.175682739754252, -1.7064910657744106]}, "referral_model": {"scaler_mean": [27.683403068340308, 1.7531380753138075, 1.1757322175732217, 29.821478382147838, 25.50892608089261, 0.04881450488145049, 0.061366806136680614, 0.20641562064156208, 0.058577405857740586, 3.774058577405858, 15.00557880055788, 129.7154811715481, 83.61506276150628, 98.9801952580195, 46.10041841004184, 97.82956764295677, 85.49232914923292, 0.6737852161785216, 36.626080892608094, 17.421199442119946, 0.7656903765690377, 0.8465829846582985, 0.17433751743375175, 0.09762900976290098, 0.09623430962343096, 0.2859135285913529, 0.04184100418410042], "scaler_scale": [5.726340871096045, 1.3083283484686161, 1.2031210809993367, 5.679141560166583, 3.995032283613758, 0.21548004314699157, 0.2400019192449587, 0.40473227224514824, 0.23483205356321807, 2.251110833657705, 4.075640751841629, 22.847745347108063, 15.517828740437219, 17.106380532218374, 13.735739143234559, 1.1712104182215894, 10.262197750205589, 0.1138156092964139, 0.3603080336198105, 2.526511525013253, 1.1778025915150785, 0.9573354236663518, 0.37939945631061206, 0.29681237544215766, 0.29491230438001836, 0.4518484068355166, 0.20022570902101086], "coef": [0.12851337696508192, 0.0634845190147366, -0.3242808085468859, -0.02333022112416602, 0.1667663015712826, -0.11168099147995576, 0.017418635244060406, 0.014571363795961873, 0.20262699118172647, -0.09691883368497205, 0.2878518351730908, 0.6354621218336166, 0.7234728553843848, 0.7272503398565826, 0.23967759105260558, -0.47356860308881565, 0.4306625196456823, -0.20542305863408408, 0.03675489390018448, 0.7234911256716191, 0.6664487527300221, 0.008298626424385884, 0.3238656436815473, 0.6620447902540293, 0.08264681568469846, 0.12180197627826982, 0.05645759994816315], "intercept": -2.6496596147238938}, "metrics": {"diagnosis_rf_accuracy": 1.0, "diagnosis_rf_macro_f1": 1.0, "diagnosis_rf_cv_accuracy_mean": 0.9954854870659746, "diagnosis_rf_cv_accuracy_std": 0.006145977574612681, "diagnosis_logreg_accuracy": 0.9952387275451942, "diagnosis_logreg_macro_f1": 0.8622958949487061, "diagnosis_logreg_cv_accuracy_mean": 0.993531413085828, "diagnosis_logreg_cv_accuracy_std": 0.0029483345791580353, "referral_accuracy": 0.9260808926080892, "referral_roc_auc": 0.9779527402305258, "n_samples": 52717, "n_abia_original": 600, "n_abia_augmented": 117, "n_external_synthetic": 52000, "class_distribution": {"Normal": 40548, "Pre_eclampsia": 11283, "Eclampsia": 553, "Gestational_HTN": 333}, "top_features": [{"feature": "MAP_mmHg", "importance": 0.24071841060439808}, {"feature": "DBP_mmHg", "importance": 0.1767805090870508}, {"feature": "Shock_Index", "importance": 0.14640014694163153}, {"feature": "Proteinuria_Grade", "importance": 0.1450059045271896}, {"feature": "SBP_mmHg", "importance": 0.14155134456723234}, {"feature": "Seizure_History", "importance": 0.045847805918398946}, {"feature": "Visual_Disturbance", "importance": 0.03694788326836277}, {"feature": "Headache", "importance": 0.02137516225049433}, {"feature": "Oedema_Grade", "importance": 0.013243409889054945}, {"feature": "Pulse_Pressure_mmHg", "importance": 0.010832524020613764}], "referral_model_trained_on": "abia_717_only", "diagnosis_model_trained_on": "full_52717"}};
+
+const API_BASE = "https://ameriwin.onrender.com";
+
+let authToken = null;
+let currentAccount = null;
+
+// ===== Header menu (account / language / theme) =====
+// ===== Toast notifications (Sonner-style: stacked, auto-dismiss, spring motion) =====
+function showToast(message, type = 'info', duration = 3200){
+  const viewport = document.getElementById('toast-viewport');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-dot"></span><span>${message}</span>`;
+  viewport.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+
+  const remove = () => {
+    el.classList.add('leaving');
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 200);
+  };
+  const timer = setTimeout(remove, duration);
+  el.addEventListener('click', () => { clearTimeout(timer); remove(); });
+}
+
+const menuBtn = document.getElementById('menu-btn');
+const menuPanel = document.getElementById('menu-panel');
+
+function closeMenu(){
+  menuPanel.classList.remove('open');
+  menuBtn.setAttribute('aria-expanded', 'false');
+}
+function openMenu(){
+  menuPanel.classList.add('open');
+  menuBtn.setAttribute('aria-expanded', 'true');
+}
+menuBtn.addEventListener('click', function(e){
+  e.stopPropagation();
+  if(menuPanel.classList.contains('open')) closeMenu(); else openMenu();
+});
+document.addEventListener('click', function(e){
+  if(!menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') closeMenu();
+});
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('amewrin_theme', theme);
+  const dict = I18N[currentLang || 'en'];
+  document.getElementById('theme-icon').innerHTML = theme === 'dark' ? '<svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg>' : '<svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3 5.5 5.5 0 1 0 13 9.5z"/></svg>';
+  document.getElementById('theme-toggle-label').textContent = theme === 'dark'
+    ? (dict ? dict.lightMode : 'Light mode')
+    : (dict ? dict.darkMode : 'Dark mode');
+}
+
+const savedTheme = localStorage.getItem('amewrin_theme') || 
+  (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+// applyTheme(savedTheme) call moved to end of script, after I18N/currentLang are defined
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+  applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+});
+
+function standardize(values, mean, scale){
+  return values.map((v,i)=> (v - mean[i]) / scale[i]);
+}
+function softmax(logits){
+  const m = Math.max(...logits);
+  const exps = logits.map(l=>Math.exp(l-m));
+  const sum = exps.reduce((a,b)=>a+b,0);
+  return exps.map(e=>e/sum);
+}
+function sigmoid(x){ return 1/(1+Math.exp(-x)); }
+function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+
+const TIER_META = {
+  Normal:          {color:'var(--normal)',   hex:'#2E8B57', label:'Low risk: routine antenatal care'},
+  Gestational_HTN: {color:'var(--caution)',  hex:'#D98E2C', label:'Elevated risk: gestational hypertension pattern'},
+  Pre_eclampsia:   {color:'var(--high)',     hex:'#C1432F', label:'High risk: pre-eclampsia pattern'},
+  Eclampsia:       {color:'var(--critical)', hex:'#7A1F1F', label:'Critical: eclampsia pattern, emergency'},
+};
+
+const I18N = {
+  en: {
+    signIn: 'Sign in', createAccount: 'Create account',
+    igboLabel: 'Igbo', englishLabel: 'English', darkMode: 'Dark mode', lightMode: 'Light mode',
+    facilityAddedToast: 'Facility added and selected', openingSmsToast: 'Opening your messaging app…', saveFailedToast: 'Could not save this assessment, check your connection',
+    authTitle: 'Your AMEWRIN account',
+    authSub: 'Save assessments and contribute to the shared facility directory.',
+    phoneNumber: 'Phone number', pin: 'PIN', digits46: '4-6 digits',
+    yourName: 'Your name', role: 'Role', facility: 'Facility',
+    egFacility: 'e.g. PHC II Ndiegoro', choosePin: 'Choose a PIN (4-6 digits)',
+    pinNote: "This PIN protects your account on this app. It doesn't verify you own this phone number. That would need an SMS verification code, which isn't wired up yet.",
+    mastTag: 'Abia State Primary Health Care Facilities<br>Hypertensive Pregnancy Screening Tool',
+    introH2: 'Screen for hypertensive disorders of&nbsp;pregnancy at the point of care.',
+    introP: "Enter a woman's vitals and antenatal history as recorded at triage. AMEWRIN classifies her risk and tells the health worker whether she needs to be referred, trained on de-identified visits from Abia State PHC facilities.",
+    diagAccuracy: 'Diagnosis accuracy', referralAuc: 'Referral ROC-AUC', trainingVisits: 'Training visits',
+    triageTag: '01 · TRIAGE', patientVitals: 'Patient & Vitals',
+    antenatalHistory: 'Antenatal history', vitalSigns: 'Vital signs', symptomsRisk: 'Symptoms & risk factors',
+    ageYears: 'Age (years)', gestAge: 'Gestational age (weeks)', gravidity: 'Gravidity', parity: 'Parity',
+    bmi: 'BMI (kg/m²)', ancVisits: 'ANC visits so far', ancBooking: 'ANC booking (wks gestation)', temperature: 'Temperature (°C)',
+    sbp: 'Systolic BP (mmHg)', dbp: 'Diastolic BP (mmHg)', spo2: 'SpO₂ (%)', heartRate: 'Heart rate (bpm)',
+    respRate: 'Respiratory rate (breaths/min)', proteinuria: 'Proteinuria (dipstick)',
+    negative: 'Negative', trace: 'Trace / 1+',
+    oedemaGrade: 'Oedema grade', none: 'None', oedema1: '+1 (ankles)', oedema2: '+2 (legs)', oedema3: '+3 (face/hands)',
+    headache: 'Headache', visualDisturbance: 'Visual disturbance', epigastricPain: 'Epigastric pain',
+    nausea: 'Nausea / vomiting', seizure: 'Seizure (this pregnancy)', multipleGestation: 'Multiple gestation',
+    prevPE: 'Previous pre-eclampsia', familyHtn: 'Family history of HTN', diabetes: 'Diabetes / comorbid',
+    runAssessment: 'Run assessment',
+    resultTag: '02 · RESULT', riskAssessment: 'Risk Assessment',
+    placeholderState: "Enter the patient's vitals and press <b>Run assessment</b> to see her risk classification, gauge reading, and referral guidance.",
+    referTag: '03 · REFER', nearestFacility: 'Nearest Facility & SMS Referral',
+    findFacility: 'Find nearest referral facility', addFacility: '+ Add a facility not listed',
+    facilityName: 'Facility name', address: 'Address', contactNumber: 'Contact number',
+    addSelectFacility: 'Add & select this facility', facilityContactDetails: 'Facility contact details',
+    referringWorker: 'Referring health worker / facility', destPhone: 'Destination phone number',
+    messagePreview: 'Message preview (editable)', openSms: 'Open SMS to send referral',
+    smsNote: "Opens your phone's own messaging app with this referral pre-filled, you review and hit send yourself. A static site like this one can't silently send SMS through a carrier; that would need a paid SMS gateway (e.g. Termii, Africa's Talking) wired up on a real server.",
+    historyTag: '04 · HISTORY', savedAssessments: 'Your Saved Assessments',
+    disclaimer: "<b>Clinical support only.</b> AMEWRIN is a decision-support aid trained on a research dataset from Abia State PHC facilities. It does not replace clinical judgement, and any woman with severe symptoms (seizure, BP ≥160/110, visual disturbance, epigastric pain) should be referred immediately regardless of the model's output.",
+    modelConfidence: 'Model confidence', referralRisk: 'Referral risk',
+    signedInAs: 'Signed in as', logOut: 'Log out',
+    noSavedAssessments: 'No saved assessments yet, run one above to save it here.',
+    couldNotLoadHistory: 'Could not load history.',
+    geoNotAvailable: 'Geolocation is not available on this device/browser.',
+    gettingLocation: 'Getting your location…',
+    locationFound: 'Location found', nearestBelow: 'Nearest facilities below:',
+    couldNotGetLocation: 'Could not get location (permission denied or unavailable). You can still pick a facility manually below.',
+    noPhoneOnFile: 'No phone on file, add one below before sending',
+    manual: 'manual', tertiary: 'tertiary', secondary: 'secondary',
+    tierNormal: 'Low risk: routine antenatal care',
+    tierGestHtn: 'Elevated risk: gestational hypertension pattern',
+    tierPreEcl: 'High risk: pre-eclampsia pattern',
+    tierEclampsia: 'Critical: eclampsia pattern, emergency',
+    diagNormal: 'Normal', diagGestHtn: 'Gestational HTN', diagPreEcl: 'Pre eclampsia', diagEclampsia: 'Eclampsia',
+    rec_emergency1: 'EMERGENCY: refer immediately to the nearest secondary/tertiary facility with a functional theatre and MgSO4 protocol. Do not delay for further tests.',
+    rec_emergency2: 'Start MgSO4 per facility protocol before transfer if trained staff and supply are available, and stabilise airway/breathing.',
+    rec_pe1: 'Refer for specialist antenatal review within 24 hours. Pre-eclampsia pattern detected.',
+    rec_pe2: 'Recheck BP and urine protein; monitor for headache, visual disturbance, or epigastric pain before transfer.',
+    rec_ghtn1: 'Increase antenatal visit frequency and monitor BP at every contact; refer if BP trends upward or proteinuria develops.',
+    rec_ghtn2: 'Counsel on warning signs (headache, blurred vision, swelling) and when to return immediately.',
+    rec_normal1: 'Continue routine antenatal care on the standard visit schedule.',
+    rec_normal2: 'Re-screen BP and symptoms at each ANC visit; no referral indicated at this time.',
+    rec_severe: 'Severe-range BP reading (≥160/110 mmHg). Treat as emergency irrespective of model output.',
+    rec_flagged: "Referral model flags elevated risk despite a 'Normal' classification, consider closer follow-up.",
+  },
+  ig: {
+    signIn: 'Banye', createAccount: 'Mepụta akaụntụ',
+    igboLabel: 'Igbo', englishLabel: 'Bekee', darkMode: 'Ọnọdụ gbara ọchịchịrị', lightMode: 'Ọnọdụ ọkụ',
+    facilityAddedToast: 'Agbakwunyere ụlọ ọgwụ ma họrọ ya', openingSmsToast: 'Na-emeghe ngwa ozi gị…', saveFailedToast: 'Enweghị ike ichekwa nyocha a, lelee njikọ ịntanetị gị',
+    authTitle: 'Akaụntụ AMEWRIN gị',
+    authSub: 'Chekwaa nyocha gị ma tinye aka na ndepụta ụlọ ọgwụ e kekọrịtara.',
+    phoneNumber: 'Nọmba ekwentị', pin: 'PIN', digits46: 'Ọnụọgụ 4-6',
+    yourName: 'Aha gị', role: 'Ọrụ', facility: 'Ụlọ ọgwụ',
+    egFacility: 'dịka. PHC II Ndiegoro', choosePin: 'Họrọ PIN (ọnụọgụ 4-6)',
+    pinNote: 'PIN a na-echekwa akaụntụ gị na ngwa a. Ọ naghị egosi na ekwentị a bụ nke gị. Nke ahụ ga-achọ koodu nkwenye SMS, nke a na-emebeghị.',
+    mastTag: 'Ụlọ Ọgwụ Mbụ Steeti Abịa<br>Ngwa Nyocha Ọbara Elu n\u2019Ime',
+    introH2: 'Nyochaa ọrịa ọbara elu n\u2019oge ime n\u2019ebe a na-elekọta ọrịa.',
+    introP: "Tinye ihe gbasara ahụ nwaanyị na akụkọ ime ya dịka e depụtara ya n\u2019oge nlele mbụ. AMEWRIN na-akọwa ogo ihe egwu ya ma gwa onye ọrụ ahụike ma ọ dị mkpa izipụ ya n\u2019ụlọ ọgwụ ọzọ, a zụrụ ya site na nleta e wepụrụ njirimara ha n\u2019ụlọ ọgwụ mbụ Steeti Abịa.",
+    diagAccuracy: 'Izi ezi nyocha', referralAuc: 'ROC-AUC nzipu', trainingVisits: 'Nleta e ji zụọ ya',
+    triageTag: '01 · NYOCHA', patientVitals: 'Onye Ọrịa & Ọnọdụ Ahụ',
+    antenatalHistory: 'Akụkọ ime', vitalSigns: 'Ọnọdụ ahụ dị mkpa', symptomsRisk: 'Ihe mgbaàmà & ihe egwu',
+    ageYears: 'Afọ (ọgụgụ afọ)', gestAge: 'Ọnwa ime (izu)', gravidity: 'Ọnụ ime ọ tụụrụ', parity: 'Ọnụ ọmụmụ mbụ',
+    bmi: 'BMI (kg/m²)', ancVisits: 'Nleta ANC ruo ugbu a', ancBooking: 'Izu e bidoro ANC', temperature: 'Okpomọkụ (°C)',
+    sbp: 'Ọbara elu Systolic (mmHg)', dbp: 'Ọbara elu Diastolic (mmHg)', spo2: 'SpO₂ (%)', heartRate: 'Ọsọ obi (bpm)',
+    respRate: 'Ọsọ iku ume (n\u2019otu nkeji)', proteinuria: 'Protein n\u2019mamịrị (dipstick)',
+    negative: 'Adịghị', trace: 'Nta / 1+',
+    oedemaGrade: 'Ogo mfụfụ ahụ', none: 'Ọ dịghị', oedema1: '+1 (nkwonkwo ụkwụ)', oedema2: '+2 (ụkwụ)', oedema3: '+3 (ihu/aka)',
+    headache: 'Isi ọwụwa', visualDisturbance: 'Nhụta anya mmebi', epigastricPain: 'Mgbu n\u2019elu afọ',
+    nausea: 'Ọgbụgbọ / ọgbụgbọ', seizure: 'Ntaramahụhụ (ime a)', multipleGestation: 'Ime ejima',
+    prevPE: 'Ọrịa ọbara elu ime nke gara aga', familyHtn: 'Akụkọ ezinụlọ nke ọbara elu', diabetes: 'Ọrịa shuga / ọrịa ọzọ',
+    runAssessment: 'Malite Nyocha',
+    resultTag: '02 · NSONAAZỤ', riskAssessment: 'Nyocha Ihe Egwu',
+    placeholderState: "Tinye ọnọdụ ahụ onye ọrịa ma pịa <b>Malite Nyocha</b> iji hụ ogo ihe egwu ya, ihe ngosi, na ntụziaka nzipu.",
+    referTag: '03 · NZIPU', nearestFacility: 'Ụlọ Ọgwụ Kacha Nso & Nzipu SMS',
+    findFacility: 'Chọta ụlọ ọgwụ kacha nso', addFacility: '+ Tinye ụlọ ọgwụ na-adịghị na ndepụta',
+    facilityName: 'Aha ụlọ ọgwụ', address: 'Adreesị', contactNumber: 'Nọmba kọntaktị',
+    addSelectFacility: 'Tinye & họrọ ụlọ ọgwụ a', facilityContactDetails: 'Nkọwa kọntaktị ụlọ ọgwụ',
+    referringWorker: 'Onye ọrụ ahụike / ụlọ ọgwụ na-ezipu', destPhone: 'Nọmba ekwentị a na-ezipu',
+    messagePreview: 'Nlele ozi (enwere ike idezi)', openSms: 'Mepee SMS izipu nzipu',
+    smsNote: "Ọ na-emeghe ngwa ozi ekwentị gị ka ozi nzipu a dị njikere, gị onwe gị ga-elele ma pịa zipu. Weebụsaịtị a enweghị ike izipu SMS na nzuzo site na netwọk ekwentị; nke ahụ ga-achọ ihe ngwaọrụ SMS a na-akwụ ụgwọ (dịka Termii, Africa's Talking) ejikọtara na sava eziokwu.",
+    historyTag: '04 · AKỤKỌ', savedAssessments: 'Nyocha Gị E Chekwara',
+    disclaimer: "<b>Naanị nkwado ahụike.</b> AMEWRIN bụ ngwa nkwado mkpebi a zụrụ site na data nyocha si n\u2019ụlọ ọgwụ mbụ Steeti Abịa. Ọ naghị anọchi anya mkpebi dọkịta, ma ọ bụrụ na nwaanyị ọ bụla nwere mgbaàmà siri ike (ntaramahụhụ, BP ≥160/110, nhụta anya mmebi, mgbu n\u2019elu afọ) e kwesịrị izipu ya ozugbo n\u2019agbanyeghị ihe akara ngosi.",
+    modelConfidence: 'Ntụkwasị obi ihe akara', referralRisk: 'Ihe egwu nzipu',
+    signedInAs: 'Ị banyere dịka', logOut: 'Pụọ',
+    noSavedAssessments: 'Ọ dịghị nyocha echekwara, mee otu n\u2019elu ka ị chekwaa ya ebe a.',
+    couldNotLoadHistory: 'Enweghị ike ibute akụkọ.',
+    geoNotAvailable: 'Geolocation adịghị na ngwaọrụ/ihuenyo a.',
+    gettingLocation: 'Na-enweta ebe ị nọ…',
+    locationFound: 'Achọtara ebe ị nọ', nearestBelow: 'Ụlọ ọgwụ kacha nso n\u2019okpuru:',
+    couldNotGetLocation: 'Enweghị ike ịnweta ebe ị nọ (ekweghị nkwenye ma ọ bụ enweghị ike). Ị ka nwere ike ịhọrọ ụlọ ọgwụ n\u2019aka gị n\u2019okpuru.',
+    noPhoneOnFile: 'Enweghị nọmba ekwentị, tinye otu n\u2019okpuru tupu izipu',
+    manual: 'onwe onye', tertiary: 'ọkwa elu', secondary: 'ọkwa nke abụọ',
+    tierNormal: 'Ihe egwu dị ala: nlekọta ime nkịtị',
+    tierGestHtn: 'Ihe egwu dị elu: ụdị ọbara elu ime',
+    tierPreEcl: 'Ihe egwu dị elu: ụdị pre-eclampsia',
+    tierEclampsia: 'Ihe egwu dị njọ: ụdị eclampsia, ihe mberede',
+    diagNormal: 'Nkịtị', diagGestHtn: 'Ọbara Elu Ime', diagPreEcl: 'Pre eclampsia', diagEclampsia: 'Eclampsia',
+    rec_emergency1: 'IHE MBEREDE: zipu ozugbo n\u2019ụlọ ọgwụ nke abụọ/elu kacha nso nwere ọnụụlọ ọrụ na protocol MgSO4. Anọghị chere maka nnwale ọzọ.',
+    rec_emergency2: 'Malite MgSO4 dịka protocol ụlọ ọgwụ si dị tupu mbufe ma ọ bụrụ na e nwere ndị ọrụ azụrụ azụ na ngwongwo, gbaakwa mbọ ka ụzọ iku ume dokwuo.',
+    rec_pe1: 'Zipu maka nyocha ime nke ọkachamara n\u2019ime awa 24, a chọtara ụdị pre-eclampsia.',
+    rec_pe2: 'Nyochaghachi BP na protein mamịrị; na-ele anya isi ọwụwa, nhụta anya mmebi, ma ọ bụ mgbu n\u2019elu afọ tupu mbufe.',
+    rec_ghtn1: 'Baa ụba na ugboro nleta ime ma na-enyocha BP n\u2019oge ọ bụla a kpọtụrụ ya; zipu ma ọ bụrụ na BP na-arịgo elu ma ọ bụ protein na-apụta.',
+    rec_ghtn2: 'Gbaa ndụmọdụ maka mgbaàmà ịdọ aka ná ntị (isi ọwụwa, anya na-adịghị ahụ nke ọma, ịfụ) na mgbe ọ ga-alọghachi ozugbo.',
+    rec_normal1: 'Gaa n\u2019ihu na nlekọta ime nkịtị dịka usoro nleta si dị.',
+    rec_normal2: 'Nyochaghachi BP na mgbaàmà na nleta ANC ọ bụla; ọ dịghị nzipu achọrọ ugbu a.',
+    rec_severe: 'Ọnụọgụ BP dị njọ (≥160/110 mmHg). Mee ka ihe mberede n\u2019agbanyeghị ihe akara ngosi.',
+    rec_flagged: "Ihe akara nzipu na-egosi ihe egwu dị elu n\u2019agbanyeghị nkewa 'Nkịtị', tụlee nleta chiri anya ọzọ.",
+  },
+};
+
+let currentLang = localStorage.getItem('amewrin_lang') || 'en';
+
+function applyLanguage(lang){
+  currentLang = lang;
+  localStorage.setItem('amewrin_lang', lang);
+  const dict = I18N[lang];
+  document.documentElement.lang = lang === 'ig' ? 'ig' : 'en';
+  document.getElementById('lang-toggle-label').textContent = lang === 'en' ? dict.igboLabel : dict.englishLabel;
+  document.getElementById('theme-toggle-label').textContent = (document.documentElement.getAttribute('data-theme')==='dark') ? dict.lightMode : dict.darkMode;
+
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key = el.getAttribute('data-i18n');
+    if(dict[key]!=null) el.textContent = dict[key];
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{
+    const key = el.getAttribute('data-i18n-html');
+    if(dict[key]!=null) el.innerHTML = dict[key];
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    const key = el.getAttribute('data-i18n-ph');
+    if(dict[key]!=null) el.placeholder = dict[key];
+  });
+
+  updateAccountUI();
+  if(lastAssessment){
+    renderResultsUI(lastAssessment);
+  }
+}
+
+document.getElementById('lang-toggle').addEventListener('click', function(){
+  applyLanguage(currentLang === 'en' ? 'ig' : 'en');
+});
+
+function collectFeatures(){
+  const val = id => parseFloat(document.getElementById(id).value);
+  const chk = id => document.getElementById(id).checked ? 1 : 0;
+
+  const sbp = val('sbp'), dbp = val('dbp');
+  const map = dbp + (sbp - dbp) / 3;
+  const pulsePressure = sbp - dbp;
+  const hr = val('hr');
+  const shockIndex = hr / sbp;
+
+  const named = {
+    Age_years: val('age'),
+    Gravidity: val('gravidity'),
+    Parity: val('parity'),
+    Gestational_Age_wks: val('gest'),
+    BMI_kgm2: val('bmi'),
+    Multiple_Gestation: chk('multiple'),
+    Prev_Pre_eclampsia: chk('prev-pe'),
+    Family_Hx_HTN: chk('family-htn'),
+    Diabetes_Comorbid: chk('diabetes'),
+    ANC_Visits_Count: val('anc-visits'),
+    ANC_Booking_wks: val('anc-booking'),
+    SBP_mmHg: sbp,
+    DBP_mmHg: dbp,
+    MAP_mmHg: map,
+    Pulse_Pressure_mmHg: pulsePressure,
+    SpO2_pct: val('spo2'),
+    Heart_Rate_bpm: hr,
+    Shock_Index: shockIndex,
+    Temp_Celsius: val('temp'),
+    Resp_Rate_breaths_min: val('rr'),
+    Proteinuria_Grade: val('proteinuria'),
+    Oedema_Grade: val('oedema'),
+    Headache: chk('headache'),
+    Visual_Disturbance: chk('visual'),
+    Epigastric_Pain: chk('epigastric'),
+    Nausea_Vomiting: chk('nausea'),
+    Seizure_History: chk('seizure'),
+  };
+
+  const ordered = MODEL.features.map(f=>named[f]);
+  return {ordered, named, map};
+}
+
+function drawGauge(mapValue, tierHex){
+  const svg = document.getElementById('gauge-svg');
+  const cx=120, cy=120, r=95;
+  const minV=60, maxV=160;
+  const clamped = Math.max(minV, Math.min(maxV, mapValue));
+  const frac = (clamped - minV) / (maxV - minV);
+  const angle = Math.PI - frac*Math.PI;
+
+  const zones = [
+    {from:60,  to:90,  color:'#2E8B57'},
+    {from:90,  to:107, color:'#D98E2C'},
+    {from:107, to:130, color:'#C1432F'},
+    {from:130, to:160, color:'#7A1F1F'},
+  ];
+
+  function pt(v, radius){
+    const f = (v-minV)/(maxV-minV);
+    const a = Math.PI - f*Math.PI;
+    return [cx + radius*Math.cos(a), cy - radius*Math.sin(a)];
+  }
+
+  let arcs = '';
+  zones.forEach(z=>{
+    const [x1,y1] = pt(z.from, r);
+    const [x2,y2] = pt(z.to, r);
+    arcs += `<path d="M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}" stroke="${z.color}" stroke-width="12" fill="none" stroke-linecap="butt" opacity="0.9"/>`;
+  });
+
+  const needleLen = r - 14;
+  const nx = cx + needleLen*Math.cos(angle);
+  const ny = cy - needleLen*Math.sin(angle);
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const needleColor = isDark ? '#E1E9F5' : '#0C1E3A';
+  const textColor = isDark ? '#94A3B8' : '#5C6F68';
+
+  svg.innerHTML = `
+    ${arcs}
+    <circle cx="${cx}" cy="${cy}" r="6" fill="${needleColor}"/>
+    <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${needleColor}" stroke-width="3.5" stroke-linecap="round"/>
+    <text x="${cx-r+2}" y="${cy+22}" font-size="10" fill="${textColor}" font-family="Instrument Sans">60</text>
+    <text x="${cx+r-16}" y="${cy+22}" font-size="10" fill="${textColor}" font-family="Instrument Sans">160</text>
+  `;
+  document.getElementById('gauge-readout').innerHTML = `MAP <b style="color:${tierHex}">${mapValue.toFixed(1)}</b> mmHg`;
+}
+
+function buildRecommendations(diagLabel, referral, feats){
+  const keys = [];
+  if(diagLabel==='Eclampsia' || feats.named.Seizure_History===1){
+    keys.push('rec_emergency1', 'rec_emergency2');
+  } else if(diagLabel==='Pre_eclampsia'){
+    keys.push('rec_pe1', 'rec_pe2');
+  } else if(diagLabel==='Gestational_HTN'){
+    keys.push('rec_ghtn1', 'rec_ghtn2');
+  } else {
+    keys.push('rec_normal1', 'rec_normal2');
+  }
+  if(feats.named.SBP_mmHg>=160 || feats.named.DBP_mmHg>=110){
+    keys.push('rec_severe');
+  }
+  if(referral.prob > 0.5 && diagLabel==='Normal'){
+    keys.push('rec_flagged');
+  }
+  return keys;
+}
+
+const FACILITIES = [
+  {name:"Abia State University Teaching Hospital (ABSUTH)", town:"Aba", lga:"Aba North", tier:"tertiary", lat:5.1200, lng:7.3706, address:"18-58 Ayaba Umueze Road, Abayi, Aba", phone:"07080443513"},
+  {name:"Federal Medical Centre (FMC) Umuahia", town:"Umuahia", lga:"Umuahia North", tier:"tertiary", lat:5.5257, lng:7.4844, address:"Aba Rd, opposite Guaranty Trust Bank, Umu Obasi, Umuahia", phone:"08038089468"},
+  {name:"General Hospital, Aba (Waterside)", town:"Aba", lga:"Aba South", tier:"secondary", lat:5.1153, lng:7.3572, address:"", phone:""},
+  {name:"General Hospital, Umuahia", town:"Umuahia", lga:"Umuahia South", tier:"secondary", lat:5.5100, lng:7.4900, address:"", phone:"08052370612"},
+  {name:"General Hospital, Osisioma", town:"Osisioma", lga:"Osisioma Ngwa", tier:"secondary", lat:5.1333, lng:7.3167, address:"", phone:""},
+  {name:"General Hospital, Isiala Oboro", town:"Isiala Oboro", lga:"Ikwuano", tier:"secondary", lat:5.4667, lng:7.5500, address:"", phone:""},
+  {name:"General Hospital, Bende", town:"Bende", lga:"Bende", tier:"secondary", lat:5.5667, lng:7.6333, address:"", phone:""},
+  {name:"General Hospital, Ohafia", town:"Ohafia", lga:"Ohafia", tier:"secondary", lat:5.6167, lng:7.8333, address:"", phone:""},
+  {name:"General Hospital, Arochukwu", town:"Arochukwu", lga:"Arochukwu", tier:"secondary", lat:5.3833, lng:7.9167, address:"", phone:""},
+  {name:"General Hospital, Isuikwuato", town:"Isuikwuato", lga:"Isuikwuato", tier:"secondary", lat:5.7833, lng:7.5167, address:"", phone:"08035086866"},
+  {name:"General Hospital, Mbawsi", town:"Mbawsi", lga:"Isiala Ngwa North", tier:"secondary", lat:5.2167, lng:7.4167, address:"", phone:""},
+  {name:"General Hospital, Omoba", town:"Omoba", lga:"Isiala Ngwa South", tier:"secondary", lat:5.1667, lng:7.4667, address:"", phone:""},
+  {name:"General Hospital, Obehie", town:"Obehie", lga:"Ukwa West", tier:"secondary", lat:4.8667, lng:7.2000, address:"", phone:""},
+  {name:"General Hospital, Akwete", town:"Akwete", lga:"Ukwa East", tier:"secondary", lat:4.9667, lng:7.3333, address:"", phone:""},
+  {name:"General Hospital, Amaise (Obi Ngwa)", town:"Amaise", lga:"Obi Ngwa", tier:"secondary", lat:5.2000, lng:7.4500, address:"", phone:""},
+  {name:"General Hospital, Ehingbeti (Ugwunagbo)", town:"Ehingbeti", lga:"Ugwunagbo", tier:"secondary", lat:5.0500, lng:7.3667, address:"", phone:""},
+  {name:"General Hospital, Nneato (Umu Nneochi)", town:"Nneato", lga:"Umu Nneochi", tier:"secondary", lat:5.8500, lng:7.4667, address:"", phone:""},
+];
+let customFacilities = [];
+
+async function api(path, options = {}) {
+  if (!API_BASE) throw new Error('NO_BACKEND');
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+  const res = await fetch(API_BASE + path, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+  return data;
+}
+
+function updateAccountUI(){
+  const infoEl = document.getElementById('account-info');
+  const dict = I18N[currentLang];
+  if (currentAccount) {
+    infoEl.innerHTML = `
+      <div class="menu-row" style="cursor:default;">
+        <span><svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.5 14c.6-2.6 2.8-4 5.5-4s4.9 1.4 5.5 4"/></svg></span>
+        <span class="who-info"><span class="who-sub">${dict.signedInAs}</span><b>${currentAccount.name || currentAccount.phone}</b></span>
+      </div>
+      <button class="menu-row in" id="account-btn"><span><svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5H3.5v11H6M10 5l3 3-3 3M13 8H6.5"/></svg></span> ${dict.logOut}</button>
+    `;
+    document.getElementById('account-btn').addEventListener('click', function(){ closeMenu(); doLogout(); });
+    document.getElementById('history-panel').style.display = 'block';
+    loadHistory();
+  } else {
+    infoEl.innerHTML = `<button class="menu-row" id="account-btn">${dict.signIn}</button>`;
+    document.getElementById('account-btn').addEventListener('click', function(){ closeMenu(); openAuthModal(); });
+    document.getElementById('history-panel').style.display = 'none';
+  }
+}
+
+function openAuthModal(){
+  if (!API_BASE) {
+    showAuthError('Accounts need the backend server connected. See amewrin-backend/README.md to deploy it, then set API_BASE in this file.');
+  }
+  document.getElementById('auth-modal').classList.add('open');
+}
+function closeAuthModal(){
+  document.getElementById('auth-modal').classList.remove('open');
+  document.getElementById('auth-error').style.display = 'none';
+}
+function showAuthError(msg){
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ===== Drag-to-dismiss for the bottom sheet (mobile) =====
+(function(){
+  const box = document.getElementById('auth-modal-box');
+  const handle = document.getElementById('auth-drag-handle');
+  let startY = 0, currentY = 0, dragging = false;
+
+  function onStart(e){
+    // Only start a drag from the handle itself, or from the box's own
+    // background, never from inputs/buttons, so taps still work normally.
+    if (window.innerWidth >= 480) return; // desktop uses the centered modal, no drag
+    dragging = true;
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    box.classList.add('dragging');
+  }
+  function onMove(e){
+    if (!dragging) return;
+    currentY = (e.touches ? e.touches[0].clientY : e.clientY);
+    const delta = Math.max(0, currentY - startY);
+    box.style.transform = `translateY(${delta}px)`;
+  }
+  function onEnd(){
+    if (!dragging) return;
+    dragging = false;
+    box.classList.remove('dragging');
+    const delta = Math.max(0, currentY - startY);
+    box.style.transform = '';
+    if (delta > 110) {
+      closeAuthModal();
+    }
+    startY = 0; currentY = 0;
+  }
+
+  handle.addEventListener('touchstart', onStart, { passive: true });
+  handle.addEventListener('mousedown', onStart);
+  window.addEventListener('touchmove', onMove, { passive: true });
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchend', onEnd);
+  window.addEventListener('mouseup', onEnd);
+})();
+
+document.getElementById('account-btn').addEventListener('click', openAuthModal);
+document.getElementById('auth-close').addEventListener('click', closeAuthModal);
+document.getElementById('auth-modal').addEventListener('click', (e)=>{ if(e.target.id==='auth-modal') closeAuthModal(); });
+
+document.getElementById('tab-login').addEventListener('click', ()=>{
+  document.getElementById('tab-login').classList.add('active');
+  document.getElementById('tab-register').classList.remove('active');
+  document.getElementById('login-form').style.display = 'block';
+  document.getElementById('register-form').style.display = 'none';
+});
+document.getElementById('tab-register').addEventListener('click', ()=>{
+  document.getElementById('tab-register').classList.add('active');
+  document.getElementById('tab-login').classList.remove('active');
+  document.getElementById('register-form').style.display = 'block';
+  document.getElementById('login-form').style.display = 'none';
+});
+
+document.getElementById('login-submit').addEventListener('click', async ()=>{
+  const phone = document.getElementById('login-phone').value.trim();
+  const pin = document.getElementById('login-pin').value.trim();
+  if(!phone || !pin){ showAuthError('Enter your phone number and PIN.'); return; }
+  try{
+    const data = await api('/api/login', { method:'POST', body: JSON.stringify({phone, pin}) });
+    authToken = data.token;
+    currentAccount = data.account;
+    updateAccountUI();
+    closeAuthModal();
+  }catch(e){
+    showAuthError(e.message === 'NO_BACKEND' ? 'No backend connected yet, see amewrin-backend/README.md.' : e.message);
+  }
+});
+
+document.getElementById('register-submit').addEventListener('click', async ()=>{
+  const name = document.getElementById('reg-name').value.trim();
+  const phone = document.getElementById('reg-phone').value.trim();
+  const role = document.getElementById('reg-role').value;
+  const facility = document.getElementById('reg-facility').value.trim();
+  const pin = document.getElementById('reg-pin').value.trim();
+  if(!phone || !pin){ showAuthError('Phone number and PIN are required.'); return; }
+  if(!/^\d{4,6}$/.test(pin)){ showAuthError('PIN must be 4-6 digits.'); return; }
+  try{
+    const data = await api('/api/register', { method:'POST', body: JSON.stringify({name, phone, role, facility, pin}) });
+    authToken = data.token;
+    currentAccount = data.account;
+    updateAccountUI();
+    closeAuthModal();
+  }catch(e){
+    showAuthError(e.message === 'NO_BACKEND' ? 'No backend connected yet, see amewrin-backend/README.md.' : e.message);
+  }
+});
+
+async function doLogout(){
+  try{ if(API_BASE) await api('/api/logout', {method:'POST'}); }catch(e){}
+  authToken = null;
+  currentAccount = null;
+  updateAccountUI();
+}
+
+async function loadHistory(){
+  const listEl = document.getElementById('history-list');
+  const dict = I18N[currentLang];
+  try{
+    const data = await api('/api/assessments');
+    if(!data.assessments || !data.assessments.length){
+      listEl.innerHTML = `<div class="loc-status">${dict.noSavedAssessments}</div>`;
+      return;
+    }
+    listEl.innerHTML = data.assessments.slice(0,15).map(a=>{
+      const date = new Date(a.created_at).toLocaleString();
+      const dx = (a.diagnosis||'-').replace('_',' ');
+      return `<div class="history-item">
+        <div class="h-top"><span>${dx}</span><span class="h-date">${date}</span></div>
+        <div>${dict.modelConfidence} ${(a.diagnosis_confidence*100||0).toFixed(0)}% · ${dict.referralRisk} ${(a.referral_probability*100||0).toFixed(0)}%${a.facility_referred_to ? ' · → '+a.facility_referred_to : ''}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    listEl.innerHTML = `<div class="loc-status">${dict.couldNotLoadHistory}</div>`;
+  }
+}
+
+async function saveAssessmentToBackend(assessment){
+  if(!API_BASE || !authToken) return;
+  try{
+    await api('/api/assessments', { method:'POST', body: JSON.stringify({
+      diagnosis: assessment.diagnosis,
+      diagnosis_confidence: assessment.confidence,
+      referral_probability: assessment.refProb,
+      vitals: { sbp: assessment.sbp, dbp: assessment.dbp, map: assessment.map },
+      symptoms: assessment.symptomKeys.map(k=>I18N.en[k]),
+      facility_referred_to: selectedFacility ? selectedFacility.name : null,
+    })});
+    loadHistory();
+  }catch(e){
+    console.warn('Could not save assessment to backend:', e.message);
+    showToast(I18N[currentLang].saveFailedToast, 'error');
+  }
+}
+
+async function loadFacilitiesFromBackend(){
+  if(!API_BASE) return;
+  try{
+    const data = await api('/api/facilities');
+    if(data.facilities) customFacilities = customFacilities.concat(data.facilities);
+  }catch(e){
+    console.warn('Could not load shared facilities:', e.message);
+  }
+}
+
+async function postFacilityToBackend(fac){
+  if(!API_BASE || !authToken) return;
+  try{
+    await api('/api/facilities', { method:'POST', body: JSON.stringify(fac) });
+  }catch(e){
+    console.warn('Could not save facility to shared directory:', e.message);
+  }
+}
+
+updateAccountUI();
+loadFacilitiesFromBackend();
+
+function haversineKm(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+let selectedFacility = null;
+let lastAssessment = null;
+
+function renderFacilityList(userLat, userLng, needsTertiary){
+  const dict = I18N[currentLang];
+  const ranked = FACILITIES.concat(customFacilities)
+    .map(f => ({...f, dist: (userLat!=null && f.lat!=null) ? haversineKm(userLat, userLng, f.lat, f.lng) : null}))
+    .sort((a,b)=> {
+      if(a.dist==null && b.dist==null) return 0;
+      if(a.dist==null) return 1;
+      if(b.dist==null) return -1;
+      return a.dist - b.dist;
+    });
+
+  const listEl = document.getElementById('facility-list');
+  listEl.innerHTML = '';
+
+  ranked.slice(0, 7).forEach((f, idx) => {
+    const div = document.createElement('div');
+    div.className = 'facility-item' + (idx===0 ? ' selected' : '');
+    const tierLabel = f.tier==='tertiary' ? dict.tertiary : (f.tier==='secondary' ? dict.secondary : dict.manual);
+    div.innerHTML = `
+      <div>
+        <div class="facility-name">${f.name}${needsTertiary && f.tier==='tertiary' ? ' ⭐' : ''}
+          <span class="tier-tag ${f.tier}">${tierLabel}</span>
+        </div>
+        <div class="facility-meta">${f.town ? f.town+', ' : ''}${f.lga} LGA</div>
+        ${f.address ? `<div class="facility-address">${f.address}</div>` : ''}
+        ${f.phone ? `<div class="facility-phone">${f.phone}</div>` : `<div class="facility-phone" style="color:var(--caution);">${dict.noPhoneOnFile}</div>`}
+      </div>
+      <div class="facility-dist">${f.dist!=null ? f.dist.toFixed(1)+' km' : '-'}</div>
+    `;
+    div.addEventListener('click', ()=> selectFacility(f, div));
+    listEl.appendChild(div);
+    if(idx===0) selectFacility(f, div);
+  });
+
+  document.getElementById('sms-block').style.display = 'block';
+}
+
+function selectFacility(f, div){
+  document.querySelectorAll('.facility-item').forEach(el=>el.classList.remove('selected'));
+  if(div) div.classList.add('selected');
+  selectedFacility = f;
+
+  document.getElementById('contact-edit-block').style.display = 'block';
+  document.getElementById('fac-address').value = f.address || '';
+  document.getElementById('fac-phone').value = f.phone || '';
+  document.getElementById('dest-phone').value = f.phone || '';
+
+  updateSmsPreview();
+}
+
+document.getElementById('fac-address').addEventListener('input', function(){
+  if(selectedFacility){ selectedFacility.address = this.value; updateSmsPreview(); }
+});
+document.getElementById('fac-phone').addEventListener('input', function(){
+  if(selectedFacility){
+    selectedFacility.phone = this.value;
+    document.getElementById('dest-phone').value = this.value;
+    updateSmsPreview();
+  }
+});
+
+document.getElementById('add-facility-toggle').addEventListener('click', function(){
+  const form = document.getElementById('add-facility-form');
+  form.style.display = form.style.display==='block' ? 'none' : 'block';
+});
+
+document.getElementById('nf-save').addEventListener('click', function(){
+  const name = document.getElementById('nf-name').value.trim();
+  if(!name){ document.getElementById('nf-name').focus(); return; }
+  const newFac = {
+    name: name,
+    town: '', lga: 'Custom entry', tier: 'custom',
+    lat: null, lng: null,
+    address: document.getElementById('nf-address').value.trim(),
+    phone: document.getElementById('nf-phone').value.trim(),
+  };
+  customFacilities.push(newFac);
+  postFacilityToBackend(newFac);
+  showToast(I18N[currentLang].facilityAddedToast, 'success');
+
+  const div = document.createElement('div');
+  div.className = 'facility-item selected';
+  div.innerHTML = `
+    <div>
+      <div class="facility-name">${newFac.name} <span class="tier-tag secondary">${I18N[currentLang].manual}</span></div>
+      <div class="facility-meta">${newFac.lga}</div>
+      ${newFac.address ? `<div class="facility-address">${newFac.address}</div>` : ''}
+      ${newFac.phone ? `<div class="facility-phone">${newFac.phone}</div>` : ''}
+    </div>
+    <div class="facility-dist">-</div>
+  `;
+  div.addEventListener('click', ()=> selectFacility(newFac, div));
+  const listEl = document.getElementById('facility-list');
+  document.querySelectorAll('.facility-item').forEach(el=>el.classList.remove('selected'));
+  listEl.prepend(div);
+  document.getElementById('sms-block').style.display = 'block';
+
+  selectFacility(newFac, div);
+
+  document.getElementById('nf-name').value = '';
+  document.getElementById('nf-address').value = '';
+  document.getElementById('nf-phone').value = '';
+  document.getElementById('add-facility-form').style.display = 'none';
+});
+
+function updateSmsPreview(){
+  if(!selectedFacility || !lastAssessment) return;
+  const a = lastAssessment;
+  const workerName = document.getElementById('worker-name').value || '[worker/facility name]';
+  const msg =
+`REFERRAL - AMEWRIN
+From: ${workerName}
+To: ${selectedFacility.name}${selectedFacility.dist!=null ? ' ('+selectedFacility.dist.toFixed(1)+' km)' : ''}
+${selectedFacility.address ? 'Address: '+selectedFacility.address+'\n' : ''}${selectedFacility.phone ? 'Facility contact: '+selectedFacility.phone+'\n' : ''}---
+Assessment: ${a.diagnosis.replace('_',' ')} (${(a.confidence*100).toFixed(0)}% confidence)
+Referral risk: ${(a.refProb*100).toFixed(0)}%
+BP: ${a.sbp}/${a.dbp} mmHg | MAP: ${a.map.toFixed(0)} | Proteinuria grade ${a.proteinuria} | Oedema grade ${a.oedema}
+GA: ${a.gest} wks | Age: ${a.age}
+Key findings: ${a.symptomKeys.length ? a.symptomKeys.map(k=>I18N.en[k]).join(', ') : 'none reported'}
+Please advise on receiving this patient. Transporting now.`;
+  document.getElementById('sms-preview').value = msg;
+  document.getElementById('sms-btn').disabled = false;
+}
+
+document.getElementById('locate-btn').addEventListener('click', function(){
+  const statusEl = document.getElementById('loc-status');
+  const dict = I18N[currentLang];
+  if(!navigator.geolocation){
+    statusEl.textContent = dict.geoNotAvailable;
+    return;
+  }
+  statusEl.textContent = dict.gettingLocation;
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const {latitude, longitude} = pos.coords;
+      statusEl.textContent = `${dict.locationFound} (±${Math.round(pos.coords.accuracy)}m). ${dict.nearestBelow}`;
+      const needsTertiary = lastAssessment && (lastAssessment.diagnosis==='Eclampsia' || lastAssessment.diagnosis==='Pre_eclampsia');
+      renderFacilityList(latitude, longitude, needsTertiary);
+    },
+    (err)=>{
+      statusEl.textContent = dict.couldNotGetLocation;
+      renderFacilityList(5.4527, 7.5248, false);
+    },
+    {enableHighAccuracy:true, timeout:10000}
+  );
+});
+
+document.getElementById('worker-name').addEventListener('input', updateSmsPreview);
+
+document.getElementById('sms-btn').addEventListener('click', function(){
+  const phone = document.getElementById('dest-phone').value.replace(/\s+/g,'');
+  const body = document.getElementById('sms-preview').value;
+  const smsUri = phone
+    ? `sms:${phone}?body=${encodeURIComponent(body)}`
+    : `sms:?body=${encodeURIComponent(body)}`;
+  showToast(I18N[currentLang].openingSmsToast, 'info', 1800);
+  window.location.href = smsUri;
+});
+
+document.getElementById('assess-form').addEventListener('submit', function(e){
+  e.preventDefault();
+
+  const feats = collectFeatures();
+
+  const xStd = standardize(feats.ordered, MODEL.scaler_mean, MODEL.scaler_scale);
+  const dm = MODEL.diagnosis_model;
+  const logits = dm.coef.map((row,k)=> dot(row, xStd) + dm.intercept[k]);
+  const probs = softmax(logits);
+  const classes = MODEL.classes;
+
+  let maxIdx=0;
+  probs.forEach((p,i)=>{ if(p>probs[maxIdx]) maxIdx=i; });
+  const predictedClass = classes[maxIdx];
+  const predictedProb = probs[maxIdx];
+
+  const rm = MODEL.referral_model;
+  const xStdR = standardize(feats.ordered, rm.scaler_mean, rm.scaler_scale);
+  const refLogit = dot(rm.coef, xStdR) + rm.intercept;
+  const refProb = sigmoid(refLogit);
+
+  const recKeys = buildRecommendations(predictedClass, {prob:refProb}, feats);
+
+  const symptomKeys = [];
+  if(feats.named.Headache) symptomKeys.push('headache');
+  if(feats.named.Visual_Disturbance) symptomKeys.push('visualDisturbance');
+  if(feats.named.Epigastric_Pain) symptomKeys.push('epigastricPain');
+  if(feats.named.Nausea_Vomiting) symptomKeys.push('nausea');
+  if(feats.named.Seizure_History) symptomKeys.push('seizure');
+
+  lastAssessment = {
+    diagnosis: predictedClass,
+    confidence: predictedProb,
+    refProb: refProb,
+    probs: probs,
+    classes: classes,
+    recKeys: recKeys,
+    sbp: feats.named.SBP_mmHg,
+    dbp: feats.named.DBP_mmHg,
+    map: feats.map,
+    proteinuria: feats.named.Proteinuria_Grade,
+    oedema: feats.named.Oedema_Grade,
+    gest: feats.named.Gestational_Age_wks,
+    age: feats.named.Age_years,
+    symptomKeys: symptomKeys,
+  };
+
+  renderResultsUI(lastAssessment);
+
+  document.getElementById('referral-section').style.display =
+    (predictedClass === 'Normal') ? 'none' : 'block';
+  selectedFacility = null;
+  document.getElementById('facility-list').innerHTML = '';
+  document.getElementById('sms-block').style.display = 'none';
+  document.getElementById('contact-edit-block').style.display = 'none';
+  document.getElementById('add-facility-form').style.display = 'none';
+  document.getElementById('loc-status').textContent = '';
+
+  saveAssessmentToBackend(lastAssessment);
+
+  document.getElementById('results-card').scrollIntoView({behavior:'smooth', block:'start'});
+});
+
+function renderResultsUI(a){
+  const dict = I18N[currentLang];
+  const diagKeyMap = { Normal:'diagNormal', Gestational_HTN:'diagGestHtn', Pre_eclampsia:'diagPreEcl', Eclampsia:'diagEclampsia' };
+  const tierKeyMap = { Normal:'tierNormal', Gestational_HTN:'tierGestHtn', Pre_eclampsia:'tierPreEcl', Eclampsia:'tierEclampsia' };
+
+  document.getElementById('placeholder-state').style.display='none';
+  document.getElementById('results-state').style.display='block';
+
+  const meta = TIER_META[a.diagnosis];
+  drawGauge(a.map, meta.hex);
+  document.getElementById('results-card').style.setProperty('--status', meta.hex);
+
+  document.getElementById('diagnosis-name').textContent = dict[diagKeyMap[a.diagnosis]];
+  document.getElementById('diagnosis-name').style.color = meta.hex;
+  document.getElementById('diagnosis-confidence').textContent = `${dict.modelConfidence}: ${(a.confidence*100).toFixed(0)}%`;
+
+  const banner = document.getElementById('tier-banner');
+  banner.style.background = meta.hex + '17';
+  banner.style.color = meta.hex;
+  banner.querySelector('.dot').style.background = meta.hex;
+  document.getElementById('tier-text').textContent = dict[tierKeyMap[a.diagnosis]] + ` · ${dict.referralRisk} ${(a.refProb*100).toFixed(0)}%`;
+
+  const barsEl = document.getElementById('prob-bars');
+  barsEl.innerHTML = '';
+  const order = ['Normal','Gestational_HTN','Pre_eclampsia','Eclampsia'];
+  order.forEach(cls=>{
+    const idx = a.classes.indexOf(cls);
+    const p = a.probs[idx];
+    const hex = TIER_META[cls].hex;
+    const row = document.createElement('div');
+    row.className='prob-row';
+    row.innerHTML = `<span>${dict[diagKeyMap[cls]]}</span>
+      <span class="prob-track"><span class="prob-fill" style="width:${(p*100).toFixed(1)}%;background:${hex}"></span></span>
+      <span class="mono">${(p*100).toFixed(0)}%</span>`;
+    barsEl.appendChild(row);
+  });
+
+  const recEl = document.getElementById('rec-list');
+  recEl.innerHTML = '';
+  a.recKeys.forEach((key,i)=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="num">${String(i+1).padStart(2,'0')}</span><span>${dict[key]}</span>`;
+    recEl.appendChild(li);
+  });
+}
+
+// dashboard stats removed from UI
+applyLanguage(currentLang);
+applyTheme(savedTheme);
+
+</script>
+
+<div class="toast-viewport" id="toast-viewport" aria-live="polite"></div>
+
+</body>
+</html>
